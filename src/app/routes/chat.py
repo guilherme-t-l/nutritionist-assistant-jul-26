@@ -1,11 +1,8 @@
 # POST /chat — multi-turn refinement of an existing meal plan.
 #
-# Each call re-sends the ENTIRE conversation history. Gemini therefore sees
-# the plan it previously produced plus the user's new refinement request
-# ("make lunch lighter"), and returns an updated full MealPlan.
-#
-# We always return a full plan (never a diff) because partial updates are
-# harder to validate and to render.
+# Each call rebuilds the system prompt from the, fixed nutritionist persona + current profile (TBD - not updated in this call yet) + current_plan,
+# and re-sends conversation history (user texts + short assistant notes).
+# We always return a full plan (never a diff) because partial updates are harder to validate and to render.
 
 from __future__ import annotations
 
@@ -13,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from agent.llm import LLM, Message
-from agent.prompts import build_system_prompt
+from agent.prompts import build_assistant_note, build_system_prompt
 from agent.schemas import MealPlan
 from agent.session import SessionStore
 from src.app.dependencies import get_llm, get_session_store
@@ -44,10 +41,9 @@ class ChatResponse(BaseModel):
 #   2. FastAPI injects `llm` and `store` via Depends(...).
 #   3. We LOAD the session by id. If missing -> 404 (user never called /plan).
 #   4. We build the conversation: session.history + [new user turn].
-#   5. We call llm.chat(...) with the same system prompt as /plan so the
-#      agent keeps its personality + constraints across turns.
+#   5. We call llm.chat(...) with persona + profile + current_plan in system.
 #   6. We re-validate the reply into a MealPlan; 502 if malformed.
-#   7. We append both turns to session.history for the NEXT /chat call.
+#   7. We replace current_plan and append user turn + short note to history.
 #   8. We return { plan }.
 @router.post("/chat", response_model=ChatResponse)
 def chat(
@@ -66,9 +62,11 @@ def chat(
     # We only append to history below, AFTER the LLM reply validates cleanly.
     conversation = session.history + [user_turn]
 
+    # Later calls: inject the latest plan into system so the model edits that,
+    # not whatever JSON used to sit in history.
     raw_reply = llm.chat(
         messages=conversation,
-        system=build_system_prompt(session.profile),
+        system=build_system_prompt(session.profile, plan=session.current_plan),
         response_schema=MealPlan,
     )
 
@@ -80,7 +78,10 @@ def chat(
             detail=f"LLM returned an invalid MealPlan: {exc}",
         ) from exc
 
+    # Replace previous plan with the new one (from the LLM's reply)
+    session.current_plan = plan
+    # Append the new user turn and the new assistant note to the history. History stays cheap: full user text + short assistant note.
     session.history.append(user_turn)
-    session.history.append(Message(role="model", content=raw_reply))
+    session.history.append(Message(role="model", content=build_assistant_note(plan)))
 
     return ChatResponse(plan=plan)

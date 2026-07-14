@@ -6,8 +6,37 @@ exact phrases it emits — no LLM, no network, no fixtures.
 
 from __future__ import annotations
 
-from agent.prompts import build_initial_user_message, build_system_prompt
-from agent.schemas import UserProfile
+from agent.prompts import (
+    build_assistant_note,
+    build_initial_user_message,
+    build_system_prompt,
+)
+from agent.schemas import Food, Meal, MealPlan, UserProfile
+
+
+# Tiny MealPlan fixture for the new "current plan in system" / assistant-note
+# tests. `*` before `notes` means callers must pass notes by name
+# (`notes="..."`), so we don't accidentally mix it up with positional args.
+def _sample_plan(*, notes: str = "Swapped lunch for a lighter option.") -> MealPlan:
+    return MealPlan(
+        meals=[
+            Meal(
+                name="Almoço",
+                description="Grilled chicken with salad",
+                ingredients=[
+                    Food(
+                        name="grilled chicken",
+                        quantity="150g",
+                        calories=250,
+                        protein_g=40,
+                        carbs_g=0,
+                        fat_g=8,
+                    ),
+                ],
+            ),
+        ],
+        notes=notes,
+    )
 
 
 def test_system_prompt_includes_allergies_loudly() -> None:
@@ -161,17 +190,53 @@ def test_system_prompt_includes_flavor_profiles_when_set() -> None:
     assert "umami" in prompt
 
 
-def test_initial_user_message_mentions_target_and_cuisines_and_meal_count() -> None:
-    profile = UserProfile(
-        goal="maintain",
-        calorie_target=2100,
-        cuisine_preferences=["Paulista", "Japanese"],
-        meals_per_day=4,
-    )
+# First /plan call: plan=None, so the system prompt is persona + profile only.
+def test_system_prompt_omits_current_plan_when_none() -> None:
+    profile = UserProfile(goal="maintain", calorie_target=2000)
 
-    message = build_initial_user_message(profile)
+    prompt = build_system_prompt(profile)
 
-    assert "2100" in message
-    assert "Paulista" in message
-    assert "Japanese" in message
-    assert "4" in message
+    assert "Current meal plan" not in prompt
+    # Edit-rules paragraph was removed — current plan in system covers later calls.
+    assert "When the user asks for a change" not in prompt
+
+
+# Later /chat call: we pass the latest plan so the LLM sees it in system,
+# not buried as a full JSON in history.
+def test_system_prompt_includes_current_plan_when_provided() -> None:
+    profile = UserProfile(goal="maintain", calorie_target=2000)
+    plan = _sample_plan()
+
+    prompt = build_system_prompt(profile, plan=plan)
+
+    assert "Current meal plan:" in prompt
+    assert "Almoço" in prompt
+    assert "grilled chicken" in prompt
+    # The whole serialized plan should appear — that's the source of truth.
+    assert plan.model_dump_json() in prompt
+
+
+# First user turn is just the task. Calories / cuisine / meal count already
+# live in the system prompt, so repeating them here would waste tokens.
+def test_initial_user_message_is_short_task_without_profile_fields() -> None:
+    message = build_initial_user_message()
+
+    assert message == "Generate my meal plan based on my goals and preferences."
+    assert "2100" not in message
+    assert "Paulista" not in message
+    assert "Japanese" not in message
+
+
+# History stores a short note (usually plan.notes), not the full MealPlan JSON.
+def test_assistant_note_uses_plan_notes() -> None:
+    plan = _sample_plan(notes="Made lunch lighter.")
+
+    assert build_assistant_note(plan) == "Made lunch lighter."
+
+
+# If the model left notes blank (or whitespace-only), we still need something
+# short to append to history — never an empty string or a full plan dump.
+def test_assistant_note_falls_back_when_notes_empty() -> None:
+    plan = _sample_plan(notes="   ")
+
+    assert build_assistant_note(plan) == "Updated the meal plan."

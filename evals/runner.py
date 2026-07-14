@@ -98,8 +98,9 @@ def _run_one(
     judge: LLM | None,
 ) -> RowResult:
     """Run one profile through the agent and score the reply on all metrics."""
+    # Same layout as POST /plan: persona + profile in system, short task as user.
     system_prompt = build_system_prompt(profile)
-    user_message = Message(role="user", content=build_initial_user_message(profile))
+    user_message = Message(role="user", content=build_initial_user_message())
 
     raw_reply = ""
     error: str | None = None
@@ -199,7 +200,7 @@ def _persist_trace(row: RowResult, profile: UserProfile) -> None:
             kind="plan",
             system_prompt=build_system_prompt(profile),
             user_messages=[
-                {"role": "user", "content": build_initial_user_message(profile)}
+                {"role": "user", "content": build_initial_user_message()}
             ],
             raw_reply=row.raw_reply,
             latency_ms=row.latency_ms,

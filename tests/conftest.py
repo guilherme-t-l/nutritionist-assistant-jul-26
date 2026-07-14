@@ -88,15 +88,19 @@ def fake_llm() -> FakeLLM:
 
 
 @pytest.fixture
-def client(fake_llm: FakeLLM) -> Iterator[TestClient]:
+def session_store() -> SessionStore:
+    """Fresh in-memory store per test — also injectable so tests can inspect sessions."""
+    return SessionStore()
+
+
+@pytest.fixture
+def client(fake_llm: FakeLLM, session_store: SessionStore) -> Iterator[TestClient]:
     """TestClient with the LLM and SessionStore overridden.
 
     Each test gets its OWN SessionStore so tests don't leak state.
     """
-    fresh_store = SessionStore()
-
     app.dependency_overrides[get_llm] = lambda: fake_llm
-    app.dependency_overrides[get_session_store] = lambda: fresh_store
+    app.dependency_overrides[get_session_store] = lambda: session_store
 
     with TestClient(app) as test_client:
         yield test_client

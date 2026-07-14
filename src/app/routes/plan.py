@@ -13,7 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ValidationError
 
 from agent.llm import LLM, Message
-from agent.prompts import build_initial_user_message, build_system_prompt
+from agent.prompts import (
+    build_assistant_note,
+    build_initial_user_message,
+    build_system_prompt,
+)
 from agent.schemas import MealPlan, UserProfile
 from agent.session import SessionStore
 from src.app.dependencies import get_llm, get_session_store
@@ -39,10 +43,12 @@ class PlanResponse(BaseModel):
 #      types and bounds — invalid inputs get a 422 before we ever run).
 #   2. FastAPI injects `llm` and `store` via Depends(...). See dependencies.py.
 #   3. We create a new session in the store -> gives us a fresh session_id.
-#   4. We build the system prompt + the first user message from the profile.
+#   4. We build the system prompt (persona + profile, no plan yet) + the
+#      short first user task message.
 #   5. We call llm.chat(...) — the ONLY outbound network call in this flow.
 #   6. We re-validate the LLM's JSON reply into a MealPlan; 502 if malformed.
-#   7. We append both turns to session.history so /chat can continue the convo.
+#   7. We store the plan on the session and append user turn + short assistant
+#      note to history (not the full MealPlan JSON — that lives in current_plan).
 #   8. We return { session_id, plan } as JSON.
 #
 # `response_model=PlanResponse` makes FastAPI validate + serialize the returned
@@ -62,8 +68,9 @@ def create_plan(
     # the two names on the left get bound to the two elements on the right.
     session_id, session = store.create(profile)
 
+    # First call: no current_plan yet — system is persona + profile only.
     system_prompt = build_system_prompt(profile)
-    first_user_message = Message(role="user", content=build_initial_user_message(profile))
+    first_user_message = Message(role="user", content=build_initial_user_message())
 
     raw_reply = llm.chat(
         messages=[first_user_message],
@@ -86,7 +93,10 @@ def create_plan(
             detail=f"LLM returned an invalid MealPlan: {exc}",
         ) from exc
 
+    # Keep the full plan on the session, so it can be used in the next turn's system prompt (/chat will inject it into the system prompt on the next turn)
+    session.current_plan = plan
+    # History stays cheap: the user task + a short note (not raw_reply JSON with all the meal plan history details).
     session.history.append(first_user_message)
-    session.history.append(Message(role="model", content=raw_reply))
+    session.history.append(Message(role="model", content=build_assistant_note(plan)))
 
     return PlanResponse(session_id=session_id, plan=plan)

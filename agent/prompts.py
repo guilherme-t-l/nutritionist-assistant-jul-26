@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from agent.schemas import UserProfile
+from agent.schemas import MealPlan, UserProfile
 
 
 # Leading underscore = "module-private" by convention. Other files shouldn't
@@ -18,10 +18,13 @@ _GOAL_PHRASING = {
     "gain_muscle": "is trying to gain muscle mass",
 }
 
+_INITIAL_USER_MESSAGE = "Generate my meal plan based on my goals and preferences."
 
-# Called from /plan AND /chat on every request. Turns a UserProfile into the
-# "system" instruction string we send to the LLM — the agent's personality
-# plus this user's hard constraints (calories, allergies, cuisines, ...).
+
+# Called from /plan AND /chat on every request. Turns a UserProfile (and, once
+# it exists, the latest MealPlan) into the "system" instruction string we send
+# to the LLM — the agent's personality, this user's hard constraints, and the
+# current plan as the source of truth for what to edit.
 #
 # Note: allergies and dislikes are rendered as TWO separate prompt lines on
 # purpose:
@@ -29,7 +32,7 @@ _GOAL_PHRASING = {
 #   - Dislikes   -> "AVOID WHEN POSSIBLE"         (preference).
 # Merging them would risk the LLM treating a dislike like an emergency, or an
 # allergy like a mild hint.
-def build_system_prompt(profile: UserProfile) -> str:
+def build_system_prompt(profile: UserProfile, plan: MealPlan | None = None) -> str:
     # `dict.get(key, default)` returns the value if the key exists, otherwise
     # the default — never raises KeyError. Safer than `_GOAL_PHRASING[key]`.
     goal_text = _GOAL_PHRASING.get(profile.goal, profile.goal)
@@ -41,7 +44,7 @@ def build_system_prompt(profile: UserProfile) -> str:
 
     # Adjacent string literals (no comma between them) get concatenated by
     # Python at parse time. `f"..."` strings interpolate `{expr}` inline.
-    return (
+    prompt = (
         "You are a warm, practical Brazilian nutritionist. "
         "You design realistic daily meal plans using Brazilian ingredients "
         "and cooking traditions, adapted to the user's preferences. You always "
@@ -53,25 +56,34 @@ def build_system_prompt(profile: UserProfile) -> str:
         f"{cuisines_text}\n"
         f"{flavors_text}\n\n"
         f"{allergies_text}\n"
-        f"{dislikes_text}\n\n"
-        "When the user asks for a change (e.g. 'make lunch lighter'), return "
-        "an UPDATED full meal plan — not a partial one. Keep the untouched "
-        "meals identical to the previous reply when possible. In the `notes` "
-        "field, briefly explain what you changed and why."
+        f"{dislikes_text}"
     )
+
+    # If the plan is not None, we add the current meal plan to the prompt (for the first call it usually won't have a plan yet).
+    if plan is not None:
+        prompt += (
+            "\n\nCurrent meal plan:\n"
+            + plan.model_dump_json()
+        )
+
+    return prompt
 
 
 # Called ONLY from /plan (not /chat). Synthesizes the user's first "turn" so
 # that /plan and /chat both end up calling llm.chat(...) with the same shape
-# of input. /chat uses the user's real typed message instead of this synthetic
-# one.
-def build_initial_user_message(profile: UserProfile) -> str:
-    cuisines = _join_or(profile.cuisine_preferences) or "Brazilian"
-    return (
-        f"Please build me a full day of {profile.meals_per_day} meals "
-        f"targeting {profile.calorie_target} kcal. I'd like it to reflect "
-        f"{cuisines} cuisine."
-    )
+# of input. Profile fields live in the system prompt — this message is just
+# the task.
+def build_initial_user_message() -> str:
+    return _INITIAL_USER_MESSAGE
+
+
+# Short note stored in history instead of the full MealPlan JSON. Prefer the
+# plan's own `notes`; fall back when the model left that field empty.
+def build_assistant_note(plan: MealPlan) -> str:
+    note = plan.notes.strip()
+    if note:
+        return note
+    return "Updated the meal plan."
 
 
 # Helper for build_system_prompt above. Turns the user's allergies list into
@@ -146,7 +158,7 @@ def _format_macro_targets(profile: UserProfile) -> str:
     return "\n".join(lines) + "\n"
 
 
-# Small string helper used by _format_cuisines and build_initial_user_message.
+# Small string helper used by _format_cuisines.
 # Joins a list with commas, using " and " before the LAST element.
 #   ['Bahian', 'Japanese']            -> 'Bahian and Japanese'
 #   ['Bahian', 'Japanese', 'Mineira'] -> 'Bahian, Japanese and Mineira'

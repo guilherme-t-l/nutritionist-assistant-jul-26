@@ -13,16 +13,20 @@ import uuid
 from dataclasses import dataclass, field
 
 from agent.llm import Message
-from agent.schemas import UserProfile
+from agent.schemas import MealPlan, UserProfile
 
 
 # Everything we need to remember for ONE guest user:
 #   - their profile (hard constraints like allergies, calories)
+#   - the latest meal plan (None until /plan succeeds)
 #   - the running conversation history (every user turn + every model turn).
 # `@dataclass` wires up __init__, __repr__, __eq__ from the declared fields.
 @dataclass
 class Session:
     profile: UserProfile
+    # Set after the first successful /plan (and replaced on each /chat).
+    # Nothing reads this yet — Step 1 only adds the field.
+    current_plan: MealPlan | None = None
     # `field(default_factory=list)` = give each Session its own fresh list.
     # If we wrote `= []` here, every Session would share the same list —
     # classic Python foot-gun (mutable default arguments).

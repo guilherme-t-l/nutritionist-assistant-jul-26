@@ -6,6 +6,7 @@ import json
 
 from fastapi.testclient import TestClient
 
+from agent.session import SessionStore
 from tests.conftest import FakeLLM
 
 
@@ -28,6 +29,39 @@ def test_plan_returns_session_and_valid_meal_plan(
     # The canned plan has 3 meals, in order: tapioca, feijoada, grilled fish.
     assert body["plan"]["meals"][0]["name"] == "Tapioca com queijo"
     assert body["plan"]["total_calories"] == 1700
+
+
+# After /plan succeeds: current_plan holds the MealPlan object, and history's
+# model turn is a short note (from plan.notes) — not the full JSON reply.
+def test_plan_stores_current_plan_and_short_history_note(
+    client: TestClient, fake_llm: FakeLLM, session_store: SessionStore
+) -> None:
+    response = client.post(
+        "/plan",
+        json={
+            "goal": "maintain",
+            "calorie_target": 2000,
+            "cuisine_preferences": ["Bahian"],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    session_id = response.json()["session_id"]
+    session = session_store.get(session_id)
+    assert session is not None
+    assert session.current_plan is not None
+    assert session.current_plan.meals[0].name == "Tapioca com queijo"
+
+    assert len(session.history) == 2
+    assert session.history[0].role == "user"
+    assert session.history[1].role == "model"
+    # Canned plan notes = "Balanced day." — never the raw MealPlan JSON.
+    assert session.history[1].content == "Balanced day."
+    assert "meals" not in session.history[1].content
+
+    # First LLM call: system has profile, but not a "Current meal plan" block.
+    system = fake_llm.calls[0]["system"]
+    assert "Current meal plan" not in system
 
 
 def test_plan_forwards_full_profile_into_system_prompt(
