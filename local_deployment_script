@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# ============================================================
+# Nutri Assistant — start the app on your computer
+# ============================================================
+#
+# Run this from ANY folder (copy/paste into Terminal):
+#
+#   /Users/guilherme/Documents/nutri-assistant/nutritionist-assistant-apr-26/local_deployment_script
+#
+# Or, if you are already inside the project folder:
+#
+#   ./local_deployment_script
+#
+# Then open:  http://127.0.0.1:8000/
+# Stop with:  Ctrl+C
+# ============================================================
+
+set -e
+
+# Always run from the folder where this script lives
+cd "$(dirname "$0")"
+
+PORT=8000
+
+# Need uv (Python package tool) installed
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Please install uv first: brew install uv"
+  exit 1
+fi
+
+# Need API keys in .env
+if [ ! -f .env ]; then
+  echo "Missing .env file. Add your GROQ_API_KEY there first."
+  exit 1
+fi
+
+# If something is already using port 8000, stop it
+if command -v lsof >/dev/null 2>&1; then
+  OLD_PIDS=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+  if [ -n "$OLD_PIDS" ]; then
+    echo "Port $PORT is busy — stopping the old process..."
+    kill $OLD_PIDS 2>/dev/null || true
+    sleep 1
+  fi
+fi
+
+echo "Installing dependencies..."
+uv sync
+
+echo "Starting the app at http://127.0.0.1:$PORT/"
+echo "Press Ctrl+C to stop."
+echo
+
+uv run uvicorn src.app.main:app --reload --host 127.0.0.1 --port $PORT
