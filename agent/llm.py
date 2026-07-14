@@ -116,6 +116,14 @@ class GeminiLLM:
 
         if not response.text:
             raise RuntimeError("Gemini returned an empty response.")
+
+        # Dev-only: dump input + history + answer after the network call.
+        # Off by default so normal runs (and FakeLLM tests) stay quiet.
+        if os.environ.get("PROMPT_INSPECTOR") == "1":
+            from agent.prompt_inspector import dump_llm_input
+
+            dump_llm_input(system, messages, response.text)
+
         return response.text
 
 
