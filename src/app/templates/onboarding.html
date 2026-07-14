@@ -633,6 +633,13 @@
       renderChat();
     }
 
+    // Prefer plan.notes (what the model wrote); fall back when empty — same idea as build_assistant_note.
+    function assistantNote(plan, fallback) {
+      const note = ((plan && plan.notes) || "").trim();
+      if (note) return note;
+      return fallback;
+    }
+
     function scrollChatToBottom() {
       const thread = $("chat-thread");
       // requestAnimationFrame ensures layout is flushed before we scroll.
@@ -803,7 +810,10 @@
         state.calorieTarget = calorieTarget;
         state.plan = data.plan;
         state.messages = [
-          { role: "assistant", text: "Here's your meal plan. Ask me to adjust anything." },
+          {
+            role: "assistant",
+            text: assistantNote(data.plan, "Here's your meal plan. Ask me to adjust anything."),
+          },
         ];
         persistSession(data.session_id, calorieTarget);
         persistPlan(data.plan);
@@ -871,15 +881,13 @@
 
         // The /chat endpoint returns a structured { plan }. Treat the plan
         // itself as the machine-readable reply and use its `notes` as the
-        // visible assistant message. If notes is empty, fall back to a
-        // friendly confirmation. If the reply ever fails to parse as a
-        // valid plan shape, we leave the card unchanged (try/catch below).
+        // visible assistant message (same pattern as build_assistant_note).
         let replyText = "";
         try {
           if (data && data.plan && Array.isArray(data.plan.meals)) {
             state.plan = data.plan;
             persistPlan(data.plan);
-            replyText = data.plan.notes || "Updated your plan.";
+            replyText = assistantNote(data.plan, "Updated your plan.");
           } else {
             replyText = "(no plan returned — leaving the previous one in place)";
           }
@@ -917,7 +925,10 @@
         // from looking blank.
         if (state.plan) {
           state.messages = [
-            { role: "assistant", text: "Here's your meal plan. Ask me to adjust anything." },
+            {
+              role: "assistant",
+              text: assistantNote(state.plan, "Here's your meal plan. Ask me to adjust anything."),
+            },
           ];
         }
         showSplitView();
