@@ -19,6 +19,7 @@ from functools import lru_cache
 # agent/llm.py — tests can override THIS wrapper, not the underlying.
 from agent.llm import LLM, get_llm as _get_real_llm
 from agent.session import SessionStore
+from agent.users import UserStore
 
 
 # Called by FastAPI on every /plan and /chat request (both routes declare
@@ -35,3 +36,10 @@ def get_llm() -> LLM:
 @lru_cache(maxsize=1)
 def get_session_store() -> SessionStore:
     return SessionStore()
+
+
+# Same singleton pattern for the durable user store (users.db).
+# Tests override this with a temp-path UserStore via dependency_overrides.
+@lru_cache(maxsize=1)
+def get_user_store() -> UserStore:
+    return UserStore()

@@ -18,8 +18,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from src.app.routes import auth as auth_routes
 from src.app.routes import chat as chat_routes
 from src.app.routes import plan as plan_routes
+from src.app.routes import profile as profile_routes
 
 
 # Reads .env into os.environ BEFORE the first request triggers get_llm(),
@@ -55,5 +57,7 @@ def onboarding(request: Request) -> HTMLResponse:
 
 # Routes live in separate files for cleanliness; `include_router` stitches them
 # back into the main app. Same URL space, different source files.
+app.include_router(auth_routes.router)
+app.include_router(profile_routes.router)
 app.include_router(plan_routes.router)
 app.include_router(chat_routes.router)

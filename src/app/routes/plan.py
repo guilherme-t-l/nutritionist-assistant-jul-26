@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
 from agent.llm import LLM, Message
@@ -20,7 +20,9 @@ from agent.prompts import (
 )
 from agent.schemas import MealPlan, UserProfile
 from agent.session import SessionStore
-from src.app.dependencies import get_llm, get_session_store
+from agent.users import UserStore
+from src.app.dependencies import get_llm, get_session_store, get_user_store
+from src.app.routes.auth import get_optional_username
 
 
 # An `APIRouter` is a mini-FastAPI-app — you attach routes here, and
@@ -58,11 +60,13 @@ def create_plan(
     # `profile: UserProfile` tells FastAPI "parse the JSON request body into a
     # UserProfile". Validation happens for free (422 on bad input).
     profile: UserProfile,
+    request: Request,
     # `Depends(get_llm)` is FastAPI's dependency injection: before calling
     # `create_plan`, FastAPI calls `get_llm()` and passes the result in.
     # Tests swap `get_llm` for a fake via `app.dependency_overrides`.
     llm: LLM = Depends(get_llm),
     store: SessionStore = Depends(get_session_store),
+    user_store: UserStore = Depends(get_user_store),
 ) -> PlanResponse:
     # Tuple unpacking: `store.create(profile)` returns `(id, session)` —
     # the two names on the left get bound to the two elements on the right.
@@ -98,5 +102,11 @@ def create_plan(
     # History stays cheap: the user task + a short note (not raw_reply JSON with all the meal plan history details).
     session.history.append(first_user_message)
     session.history.append(Message(role="model", content=build_assistant_note(plan)))
+
+    # Logged-in only: persist after a successful plan is ready for the UI.
+    # Guests (no cookie) leave users.db untouched. Failures above never reach here.
+    username = get_optional_username(request)
+    if username:
+        user_store.save_profile_and_plan(username, profile, plan)
 
     return PlanResponse(session_id=session_id, plan=plan)

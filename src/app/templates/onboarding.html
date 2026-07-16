@@ -54,7 +54,7 @@
     }
     label { display: block; margin-top: 1rem; font-weight: 600; }
     .hint { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
-    input[type="text"], input[type="number"], select, textarea {
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
       width: 100%;
       padding: 0.55rem 0.7rem;
       margin-top: 0.25rem;
@@ -163,6 +163,46 @@
       transition: color 0.15s, border-color 0.15s, background 0.15s;
     }
     .btn-ghost:hover { color: var(--accent-ink); border-color: var(--accent); background: var(--accent-soft); }
+    .header-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+
+    /* Welcome view */
+    .welcome {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 3rem 1rem 3rem;
+    }
+    .welcome h1 { margin-bottom: 0.25rem; }
+    .welcome .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 1.5rem; }
+    .welcome-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .welcome-divider::before,
+    .welcome-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border-strong);
+    }
+    .btn-secondary {
+      width: 100%;
+      margin-top: 0;
+      background: var(--panel);
+      color: var(--accent-ink);
+      border: 1px solid var(--accent);
+      padding: 0.65rem 1.2rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-secondary:hover { background: var(--accent-soft); }
+    .welcome .btn-primary { width: 100%; }
 
     /* Chat thread */
     .chat-thread {
@@ -429,10 +469,28 @@
   </style>
 </head>
 <body>
+  <!-- WELCOME VIEW -->
+  <main id="welcome-view" class="welcome hidden">
+    <h1>Nutritionist AI</h1>
+    <p class="subtitle">Personalized meal plans — guest or saved account.</p>
+    <section class="card">
+      <button type="button" id="guest-btn" class="btn-secondary">Continue as Guest</button>
+      <div class="welcome-divider">or</div>
+      <form id="login-form">
+        <label for="login-username">Username</label>
+        <input id="login-username" name="username" type="text" autocomplete="username" required />
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+        <button type="submit" id="login-btn" class="btn-primary">Log In</button>
+        <p id="login-error" class="error hidden"></p>
+      </form>
+    </section>
+  </main>
+
   <!-- ONBOARDING VIEW -->
   <main id="onboarding-view" class="onboarding hidden">
     <h1>NutriAgent</h1>
-    <p class="subtitle">A Brazilian AI nutritionist. Tell it about you; it builds a day of meals.</p>
+    <p id="onboarding-subtitle" class="subtitle">A Brazilian AI nutritionist. Tell it about you; it builds a day of meals.</p>
 
     <section class="card">
       <form id="profile-form">
@@ -494,6 +552,7 @@
         <input id="disliked_ingredients" name="disliked_ingredients" type="text" placeholder="cilantro, liver" />
 
         <button type="submit" id="submit-btn" class="btn-primary">Build my meal plan</button>
+        <button type="button" id="cancel-form-btn" class="btn-ghost hidden" style="margin-top: 0.75rem; margin-left: 0.5rem;">Cancel</button>
         <p id="form-error" class="error hidden"></p>
       </form>
     </section>
@@ -507,7 +566,12 @@
           <span class="dot" aria-hidden="true"></span>
           NutriAgent
         </div>
-        <button id="new-plan-btn" class="btn-ghost" type="button">New plan</button>
+        <div class="header-actions">
+          <button id="new-chat-btn" class="btn-ghost hidden" type="button">New chat</button>
+          <button id="update-prefs-btn" class="btn-ghost hidden" type="button">Update preferences</button>
+          <button id="new-plan-btn" class="btn-ghost" type="button">New plan</button>
+          <button id="logout-btn" class="btn-ghost hidden" type="button">Log out</button>
+        </div>
       </header>
       <div id="chat-thread" class="chat-thread" aria-live="polite"></div>
       <div class="chat-input-area">
@@ -561,7 +625,7 @@
 
     // ---------- App state ----------
     // Session state lives in sessionStorage so a page reload inside the same
-    // tab keeps the user in their conversation. "New plan" clears it.
+    // tab keeps the user in their conversation. Auth lives in an HttpOnly cookie.
     let state = {
       sessionId: sessionStorage.getItem(SS_KEYS.sessionId) || null,
       calorieTarget: Number(sessionStorage.getItem(SS_KEYS.calorieTarget)) || null,
@@ -569,6 +633,10 @@
       messages: [], // {role: "user"|"assistant", text: string}
       waiting: false,
       activeDayIndex: 0,
+      username: null,
+      profile: null,
+      // "plan" → POST /plan; "prefs" → PUT /profile (logged-in only)
+      formMode: "plan",
     };
 
     function safeParseJson(raw) {
@@ -589,16 +657,48 @@
       sessionStorage.removeItem(SS_KEYS.sessionId);
       sessionStorage.removeItem(SS_KEYS.calorieTarget);
       sessionStorage.removeItem(SS_KEYS.plan);
+      state.sessionId = null;
+      state.calorieTarget = null;
+      state.plan = null;
+      state.messages = [];
+      state.activeDayIndex = 0;
+    }
+
+    function isLoggedIn() {
+      return !!state.username;
+    }
+
+    function updateHeaderActions() {
+      const loggedIn = isLoggedIn();
+      $("new-chat-btn").classList.toggle("hidden", !loggedIn);
+      $("update-prefs-btn").classList.toggle("hidden", !loggedIn);
+      $("logout-btn").classList.toggle("hidden", !loggedIn);
     }
 
     // ---------- View switching ----------
-    function showOnboarding() {
+    function showWelcome() {
+      $("welcome-view").classList.remove("hidden");
+      $("onboarding-view").classList.add("hidden");
+      $("split-view").classList.add("hidden");
+    }
+    function showOnboarding(mode = "plan") {
+      state.formMode = mode;
+      const prefs = mode === "prefs";
+      $("onboarding-subtitle").textContent = prefs
+        ? "Update your preferences. Your current meal plan stays the same."
+        : "A Brazilian AI nutritionist. Tell it about you; it builds a day of meals.";
+      $("submit-btn").textContent = prefs ? "Save preferences" : "Build my meal plan";
+      // Cancel only when returning to an existing split session (logged-in prefs/new plan).
+      $("cancel-form-btn").classList.toggle("hidden", !(isLoggedIn() && state.plan));
+      $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.remove("hidden");
       $("split-view").classList.add("hidden");
     }
     function showSplitView() {
+      $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.add("hidden");
       $("split-view").classList.remove("hidden");
+      updateHeaderActions();
       renderPlan(state.plan);
       renderChat();
       // Auto-grow textarea + focus
@@ -606,6 +706,70 @@
         autosizeTextarea($("chat-input"));
         $("chat-input").focus();
       }, 0);
+    }
+
+    function collectProfilePayload() {
+      return {
+        goal: $("goal").value,
+        calorie_target: Number($("calorie_target").value),
+        protein_g_target: optionalInt("protein_g_target"),
+        carbs_g_target: optionalInt("carbs_g_target"),
+        fat_g_target: optionalInt("fat_g_target"),
+        meals_per_day: Number($("meals_per_day").value),
+        cuisine_preferences: checkedValues("cuisines"),
+        flavor_profiles: checkedValues("flavors"),
+        allergies: parseCommaList($("allergies").value),
+        disliked_ingredients: parseCommaList($("disliked_ingredients").value),
+      };
+    }
+
+    function setCheckboxGroup(containerId, values) {
+      const set = new Set(values || []);
+      document.querySelectorAll(`#${containerId} input[type="checkbox"]`).forEach((el) => {
+        el.checked = set.has(el.value);
+      });
+    }
+
+    function fillProfileForm(profile) {
+      if (!profile) return;
+      $("goal").value = profile.goal || "maintain";
+      $("calorie_target").value = profile.calorie_target ?? 2000;
+      $("protein_g_target").value = profile.protein_g_target ?? "";
+      $("carbs_g_target").value = profile.carbs_g_target ?? "";
+      $("fat_g_target").value = profile.fat_g_target ?? "";
+      $("meals_per_day").value = profile.meals_per_day ?? 3;
+      setCheckboxGroup("cuisines", profile.cuisine_preferences);
+      setCheckboxGroup("flavors", profile.flavor_profiles);
+      $("allergies").value = (profile.allergies || []).join(", ");
+      $("disliked_ingredients").value = (profile.disliked_ingredients || []).join(", ");
+    }
+
+    async function enterLoggedInFromAuth(me) {
+      state.username = me.username;
+      state.profile = me.profile || null;
+      if (me.has_plan) {
+        await resumeConversation();
+      } else {
+        // Drop any leftover guest sessionStorage before first-time onboarding.
+        clearSession();
+        if (state.profile) fillProfileForm(state.profile);
+        showOnboarding("plan");
+      }
+    }
+
+    async function resumeConversation() {
+      const res = await fetch("/session/resume", { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+      const data = await res.json();
+      state.sessionId = data.session_id;
+      state.profile = data.profile;
+      state.plan = data.plan;
+      state.calorieTarget = data.profile?.calorie_target ?? state.calorieTarget;
+      state.messages = [];
+      state.activeDayIndex = 0;
+      persistSession(data.session_id, state.calorieTarget);
+      persistPlan(data.plan);
+      showSplitView();
     }
 
     // ---------- Chat rendering ----------
@@ -774,57 +938,68 @@
       ta.style.height = Math.min(ta.scrollHeight, 4 * 1.4 * 16 + 10) + "px";
     }
 
-    // ---------- Onboarding submit ----------
+    // ---------- Onboarding / prefs submit ----------
     $("profile-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = $("submit-btn");
       const err = $("form-error");
       err.classList.add("hidden");
       btn.disabled = true;
-      btn.textContent = "Thinking…";
+      const idleLabel = state.formMode === "prefs" ? "Save preferences" : "Build my meal plan";
+      btn.textContent = state.formMode === "prefs" ? "Saving…" : "Thinking…";
 
-      const calorieTarget = Number($("calorie_target").value);
-      const payload = {
-        goal: $("goal").value,
-        calorie_target: calorieTarget,
-        protein_g_target: optionalInt("protein_g_target"),
-        carbs_g_target: optionalInt("carbs_g_target"),
-        fat_g_target: optionalInt("fat_g_target"),
-        meals_per_day: Number($("meals_per_day").value),
-        cuisine_preferences: checkedValues("cuisines"),
-        flavor_profiles: checkedValues("flavors"),
-        allergies: parseCommaList($("allergies").value),
-        disliked_ingredients: parseCommaList($("disliked_ingredients").value),
-      };
+      const payload = collectProfilePayload();
+      const calorieTarget = payload.calorie_target;
 
       try {
-        const res = await fetch("/plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-        const data = await res.json();
+        if (state.formMode === "prefs") {
+          const body = { ...payload, session_id: state.sessionId };
+          const res = await fetch("/profile", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+          const data = await res.json();
+          state.profile = data.profile;
+          state.calorieTarget = data.profile.calorie_target;
+          if (state.sessionId) persistSession(state.sessionId, state.calorieTarget);
+          // Same plan in the right panel — prefs only.
+          showSplitView();
+        } else {
+          const res = await fetch("/plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+          const data = await res.json();
 
-        state.sessionId = data.session_id;
-        state.calorieTarget = calorieTarget;
-        state.plan = data.plan;
-        state.messages = [
-          {
-            role: "assistant",
-            text: assistantNote(data.plan, "Here's your meal plan. Ask me to adjust anything."),
-          },
-        ];
-        persistSession(data.session_id, calorieTarget);
-        persistPlan(data.plan);
-        showSplitView();
+          state.sessionId = data.session_id;
+          state.calorieTarget = calorieTarget;
+          state.profile = payload;
+          state.plan = data.plan;
+          state.messages = [
+            {
+              role: "assistant",
+              text: assistantNote(data.plan, "Here's your meal plan. Ask me to adjust anything."),
+            },
+          ];
+          persistSession(data.session_id, calorieTarget);
+          persistPlan(data.plan);
+          showSplitView();
+        }
       } catch (ex) {
         err.textContent = ex.message;
         err.classList.remove("hidden");
       } finally {
         btn.disabled = false;
-        btn.textContent = "Build my meal plan";
+        btn.textContent = idleLabel;
       }
+    });
+
+    $("cancel-form-btn").addEventListener("click", () => {
+      showSplitView();
     });
 
     // ---------- Chat submit ----------
@@ -909,20 +1084,92 @@
       }
     });
 
-    // ---------- New plan ----------
+    // ---------- Header actions ----------
     $("new-plan-btn").addEventListener("click", () => {
+      if (isLoggedIn()) {
+        fillProfileForm(state.profile);
+        showOnboarding("plan");
+        return;
+      }
+      // Guest: clear storage → reload → welcome → Guest again.
       clearSession();
-      // Full reload guarantees a clean slate (form state, closures, etc.).
       window.location.reload();
     });
 
+    $("new-chat-btn").addEventListener("click", async () => {
+      try {
+        await resumeConversation();
+      } catch (ex) {
+        $("chat-error").textContent = ex.message;
+        $("chat-error").classList.remove("hidden");
+      }
+    });
+
+    $("update-prefs-btn").addEventListener("click", () => {
+      fillProfileForm(state.profile);
+      showOnboarding("prefs");
+    });
+
+    $("logout-btn").addEventListener("click", async () => {
+      try {
+        await fetch("/logout", { method: "POST" });
+      } catch {
+        // Still clear local state even if the network call fails.
+      }
+      state.username = null;
+      state.profile = null;
+      clearSession();
+      showWelcome();
+    });
+
+    $("guest-btn").addEventListener("click", () => {
+      showOnboarding("plan");
+    });
+
+    $("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = $("login-error");
+      const btn = $("login-btn");
+      err.classList.add("hidden");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: $("login-username").value.trim(),
+            password: $("login-password").value,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        // Cookie is set; /auth/me drives the same branches as boot.
+        const meRes = await fetch("/auth/me");
+        if (!meRes.ok) throw new Error((await meRes.json()).detail || meRes.statusText);
+        await enterLoggedInFromAuth(await meRes.json());
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.classList.remove("hidden");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     // ---------- Boot ----------
-    (function init() {
+    (async function init() {
+      try {
+        const meRes = await fetch("/auth/me");
+        if (meRes.ok) {
+          const me = await meRes.json();
+          await enterLoggedInFromAuth(me);
+          return;
+        }
+      } catch {
+        // Treat network errors like logged-out.
+      }
+
+      // Guest / logged out
       if (state.sessionId) {
-        // Returning user (same tab). If we have a cached plan show it; the
-        // chat thread starts empty since /chat history lives server-side and
-        // we don't refetch it. A fresh assistant greeting keeps the thread
-        // from looking blank.
+        // Guest reload: sessionStorage still has session_id → SPLIT
         if (state.plan) {
           state.messages = [
             {
@@ -933,7 +1180,7 @@
         }
         showSplitView();
       } else {
-        showOnboarding();
+        showWelcome();
       }
     })();
   </script>

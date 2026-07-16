@@ -44,15 +44,19 @@ class SessionStore:
         # it tells the type checker "string keys, Session values".
         self._sessions: dict[str, Session] = {}
 
-    # Called by POST /plan at the start of a new user's journey.
+    # Called by POST /plan (and POST /session/resume for returning users).
     # Generates a fresh 32-char hex session_id, attaches a new Session
-    # carrying the user's profile + an empty history, and returns both so the
-    # caller can save the id to the response and keep appending to the session.
-    def create(self, profile: UserProfile) -> tuple[str, Session]:
+    # carrying the user's profile + optional current_plan + empty history.
+    # Resume passes current_plan from DB; /plan leaves it None until generation.
+    def create(
+        self,
+        profile: UserProfile,
+        current_plan: MealPlan | None = None,
+    ) -> tuple[str, Session]:
         # `.hex` gives the UUID as a 32-char hex string (no dashes) — cleaner
         # in URLs and headers than the default "ab12-34cd-..." form.
         session_id = uuid.uuid4().hex
-        session = Session(profile=profile)
+        session = Session(profile=profile, current_plan=current_plan)
         self._sessions[session_id] = session
         # Returning two values = returning a tuple. The caller unpacks with
         # `session_id, session = store.create(profile)`.

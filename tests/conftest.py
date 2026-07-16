@@ -7,6 +7,7 @@ a canned MealPlan JSON. These are reused across test_plan.py and test_chat.py.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -15,7 +16,8 @@ from pydantic import BaseModel
 
 from agent.llm import LLM, Message
 from agent.session import SessionStore
-from src.app.dependencies import get_llm, get_session_store
+from agent.users import UserStore
+from src.app.dependencies import get_llm, get_session_store, get_user_store
 from src.app.main import app
 
 
@@ -94,13 +96,22 @@ def session_store() -> SessionStore:
 
 
 @pytest.fixture
-def client(fake_llm: FakeLLM, session_store: SessionStore) -> Iterator[TestClient]:
-    """TestClient with the LLM and SessionStore overridden.
+def user_store(tmp_path: Path) -> UserStore:
+    """Temp users.db per test — never touch the real project-root file."""
+    return UserStore(tmp_path / "users.db")
 
-    Each test gets its OWN SessionStore so tests don't leak state.
+
+@pytest.fixture
+def client(
+    fake_llm: FakeLLM, session_store: SessionStore, user_store: UserStore
+) -> Iterator[TestClient]:
+    """TestClient with the LLM, SessionStore, and UserStore overridden.
+
+    Each test gets its OWN stores so tests don't leak state.
     """
     app.dependency_overrides[get_llm] = lambda: fake_llm
     app.dependency_overrides[get_session_store] = lambda: session_store
+    app.dependency_overrides[get_user_store] = lambda: user_store
 
     with TestClient(app) as test_client:
         yield test_client
