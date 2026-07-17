@@ -129,6 +129,71 @@
       min-width: 0;
       height: 100vh;
     }
+    .plan-save {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.35rem;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto 0.85rem;
+    }
+    .plan-save-btn {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.48rem 1rem 0.48rem 0.85rem;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.84rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      box-shadow:
+        0 1px 2px rgba(31, 106, 72, 0.18),
+        0 6px 16px rgba(47, 133, 90, 0.22);
+      transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      animation: plan-save-in 0.22s ease-out;
+    }
+    .plan-save-btn:hover:not(:disabled) {
+      background: #256b48;
+      box-shadow:
+        0 1px 2px rgba(31, 106, 72, 0.2),
+        0 8px 20px rgba(47, 133, 90, 0.28);
+    }
+    .plan-save-btn:active:not(:disabled) { transform: translateY(1px); }
+    .plan-save-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+      box-shadow: none;
+      background: #8a9a90;
+    }
+    .plan-save-btn.is-dirty:disabled {
+      opacity: 0.55;
+      cursor: wait;
+      background: var(--accent);
+      box-shadow: none;
+    }
+    .plan-save-btn svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .plan-save-error {
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.8rem;
+      text-align: right;
+      max-width: 16rem;
+    }
+    @keyframes plan-save-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
     /* Chat header */
     .chat-header {
@@ -381,24 +446,38 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.3rem;
+      gap: 0.5rem;
     }
     .food-row {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 0.75rem;
+      align-items: start;
       font-size: 0.93rem;
       padding: 0.1rem 0;
+    }
+    .food-main {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      min-width: 0;
     }
     .food-name { color: var(--ink); }
     .food-qty {
       color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
+    .food-macros {
+      color: #9ca3af;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+    }
     .food-meta {
       color: var(--muted);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
+      padding-top: 0.1rem;
     }
     .meal-total {
       margin-top: 0.75rem;
@@ -587,6 +666,17 @@
       </div>
     </aside>
     <main class="plan-panel">
+      <div id="plan-save" class="plan-save hidden">
+        <button id="save-plan-btn" class="plan-save-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <path d="M17 21v-8H7v8"/>
+            <path d="M7 3v5h8"/>
+          </svg>
+          <span id="save-plan-label">Save plan</span>
+        </button>
+        <p id="plan-save-error" class="plan-save-error hidden"></p>
+      </div>
       <div id="plan-card" class="plan-card">
         <div class="plan-empty">Your meal plan will appear here.</div>
       </div>
@@ -637,6 +727,9 @@
       profile: null,
       // "plan" → POST /plan; "prefs" → PUT /profile (logged-in only)
       formMode: "plan",
+      // Logged-in only: true when session plan differs from last saved active_plan.
+      planDirty: false,
+      savingPlan: false,
     };
 
     function safeParseJson(raw) {
@@ -662,10 +755,46 @@
       state.plan = null;
       state.messages = [];
       state.activeDayIndex = 0;
+      state.planDirty = false;
+      state.savingPlan = false;
     }
 
     function isLoggedIn() {
       return !!state.username;
+    }
+
+    function markPlanClean() {
+      state.planDirty = false;
+      updateSavePlanButton();
+    }
+
+    function markPlanDirty() {
+      if (!isLoggedIn()) return;
+      state.planDirty = true;
+      updateSavePlanButton();
+    }
+
+    function updateSavePlanButton() {
+      const wrap = $("plan-save");
+      const btn = $("save-plan-btn");
+      const label = $("save-plan-label");
+      if (!wrap || !btn || !label) return;
+      // Logged-in with a plan: always show in the plan panel top-right.
+      const show = isLoggedIn() && !!state.plan;
+      wrap.classList.toggle("hidden", !show);
+      if (!show) {
+        $("plan-save-error").classList.add("hidden");
+        return;
+      }
+      const canSave = state.planDirty && !state.savingPlan && !state.waiting;
+      btn.disabled = !canSave;
+      btn.classList.toggle("is-dirty", state.planDirty);
+      label.textContent = state.savingPlan ? "Saving…" : "Save plan";
+    }
+
+    function confirmDiscardUnsaved() {
+      if (!state.planDirty) return true;
+      return window.confirm("You have unsaved plan changes. Discard them?");
     }
 
     function updateHeaderActions() {
@@ -673,6 +802,7 @@
       $("new-chat-btn").classList.toggle("hidden", !loggedIn);
       $("update-prefs-btn").classList.toggle("hidden", !loggedIn);
       $("logout-btn").classList.toggle("hidden", !loggedIn);
+      updateSavePlanButton();
     }
 
     // ---------- View switching ----------
@@ -769,6 +899,7 @@
       state.activeDayIndex = 0;
       persistSession(data.session_id, state.calorieTarget);
       persistPlan(data.plan);
+      markPlanClean();
       showSplitView();
     }
 
@@ -902,9 +1033,15 @@
 
     function renderMeal(meal) {
       const foods = (meal.ingredients || []).map((food) => {
+        const p = food.protein_g ?? 0;
+        const c = food.carbs_g ?? 0;
+        const f = food.fat_g ?? 0;
         return `
           <li class="food-row">
-            <span class="food-name">${escapeHtml(food.name)} · <span class="food-qty">${escapeHtml(food.quantity)}</span></span>
+            <span class="food-main">
+              <span class="food-name">${escapeHtml(food.name)} · <span class="food-qty">${escapeHtml(food.quantity)}</span></span>
+              <span class="food-macros">P ${p}g · C ${c}g · F ${f}g</span>
+            </span>
             <span class="food-meta">${food.calories} kcal</span>
           </li>
         `;
@@ -987,6 +1124,8 @@
           ];
           persistSession(data.session_id, calorieTarget);
           persistPlan(data.plan);
+          // /plan already wrote active_plan for logged-in users.
+          markPlanClean();
           showSplitView();
         }
       } catch (ex) {
@@ -1043,6 +1182,7 @@
       autosizeTextarea(chatInput);
       state.waiting = true;
       updateSendEnabled();
+      updateSavePlanButton();
       renderChat();
 
       try {
@@ -1062,6 +1202,7 @@
           if (data && data.plan && Array.isArray(data.plan.meals)) {
             state.plan = data.plan;
             persistPlan(data.plan);
+            markPlanDirty();
             replyText = assistantNote(data.plan, "Updated your plan.");
           } else {
             replyText = "(no plan returned — leaving the previous one in place)";
@@ -1073,6 +1214,7 @@
         state.waiting = false;
         pushMessage("assistant", replyText);
         renderPlan(state.plan);
+        updateSavePlanButton();
       } catch (ex) {
         state.waiting = false;
         err.textContent = ex.message;
@@ -1080,12 +1222,48 @@
         renderChat();
       } finally {
         updateSendEnabled();
+        updateSavePlanButton();
         chatInput.focus();
       }
     });
 
+    $("save-plan-btn").addEventListener("click", async () => {
+      if (!isLoggedIn() || !state.planDirty || state.savingPlan || state.waiting) return;
+      const err = $("plan-save-error");
+      err.classList.add("hidden");
+      if (!state.sessionId) {
+        err.textContent = "Session missing. Start a new plan.";
+        err.classList.remove("hidden");
+        return;
+      }
+      state.savingPlan = true;
+      updateSavePlanButton();
+      try {
+        const res = await fetch("/plan/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: state.sessionId }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        markPlanClean();
+      } catch (ex) {
+        err.textContent = ex.message || "Could not save plan.";
+        err.classList.remove("hidden");
+      } finally {
+        state.savingPlan = false;
+        updateSavePlanButton();
+      }
+    });
+
+    window.addEventListener("beforeunload", (e) => {
+      if (!state.planDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    });
+
     // ---------- Header actions ----------
     $("new-plan-btn").addEventListener("click", () => {
+      if (!confirmDiscardUnsaved()) return;
       if (isLoggedIn()) {
         fillProfileForm(state.profile);
         showOnboarding("plan");
@@ -1097,6 +1275,7 @@
     });
 
     $("new-chat-btn").addEventListener("click", async () => {
+      if (!confirmDiscardUnsaved()) return;
       try {
         await resumeConversation();
       } catch (ex) {
@@ -1106,11 +1285,13 @@
     });
 
     $("update-prefs-btn").addEventListener("click", () => {
+      if (!confirmDiscardUnsaved()) return;
       fillProfileForm(state.profile);
       showOnboarding("prefs");
     });
 
     $("logout-btn").addEventListener("click", async () => {
+      if (!confirmDiscardUnsaved()) return;
       try {
         await fetch("/logout", { method: "POST" });
       } catch {

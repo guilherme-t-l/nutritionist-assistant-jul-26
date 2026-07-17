@@ -1,8 +1,8 @@
-"""Persist profile/plan on /plan and /chat only after successful generation."""
+"""Persist profile/plan on /plan and /plan/save only after successful generation."""
 
 from __future__ import annotations
 
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan
 from agent.users import UserStore
 from fastapi.testclient import TestClient
 
@@ -59,14 +59,40 @@ def test_plan_failure_does_not_write(
     assert user.active_plan is None
 
 
-def test_chat_writes_plan_only(
+def test_chat_does_not_write_plan(
     client: TestClient, user_store: UserStore, fake_llm: FakeLLM
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     plan_resp = client.post("/plan", json=PLAN_BODY)
     session_id = plan_resp.json()["session_id"]
 
-    # Change canned reply notes so we can see the chat write-back.
+    updated = MealPlan.model_validate_json(CANNED_PLAN_JSON)
+    updated = updated.model_copy(update={"notes": "More protein."})
+    fake_llm.canned_reply = updated.model_dump_json()
+
+    chat = client.post(
+        "/chat",
+        json={"session_id": session_id, "message": "add more protein"},
+    )
+    assert chat.status_code == 200, chat.text
+    assert chat.json()["plan"]["notes"] == "More protein."
+
+    user = user_store.get_user("demo1")
+    assert user is not None
+    assert user.profile is not None
+    assert user.profile.calorie_target == 1800
+    assert user.active_plan is not None
+    # Working plan changed in the response; DB still has the pre-chat plan.
+    assert user.active_plan.notes == "Balanced day."
+
+
+def test_save_plan_writes_after_chat(
+    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+) -> None:
+    client.post("/login", json={"username": "demo1", "password": "password1"})
+    plan_resp = client.post("/plan", json=PLAN_BODY)
+    session_id = plan_resp.json()["session_id"]
+
     updated = MealPlan.model_validate_json(CANNED_PLAN_JSON)
     updated = updated.model_copy(update={"notes": "More protein."})
     fake_llm.canned_reply = updated.model_dump_json()
@@ -77,12 +103,34 @@ def test_chat_writes_plan_only(
     )
     assert chat.status_code == 200, chat.text
 
+    before = user_store.get_user("demo1")
+    assert before is not None
+    assert before.active_plan is not None
+    assert before.active_plan.notes == "Balanced day."
+
+    saved = client.post("/plan/save", json={"session_id": session_id})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["ok"] is True
+
     user = user_store.get_user("demo1")
     assert user is not None
     assert user.profile is not None
     assert user.profile.calorie_target == 1800  # profile unchanged
     assert user.active_plan is not None
     assert user.active_plan.notes == "More protein."
+
+
+def test_save_plan_requires_auth(client: TestClient) -> None:
+    plan_resp = client.post("/plan", json=PLAN_BODY)
+    session_id = plan_resp.json()["session_id"]
+    response = client.post("/plan/save", json={"session_id": session_id})
+    assert response.status_code == 401
+
+
+def test_save_plan_unknown_session(client: TestClient) -> None:
+    client.post("/login", json={"username": "demo1", "password": "password1"})
+    response = client.post("/plan/save", json={"session_id": "does-not-exist"})
+    assert response.status_code == 404
 
 
 def test_chat_failure_does_not_overwrite_plan(

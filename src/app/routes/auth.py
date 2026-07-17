@@ -1,7 +1,7 @@
 # Auth routes: login / logout / me.
 #
 # Cookie value is the username (MVP). No JWT. Login does not mutate profile
-# or active_plan — those only change after successful /plan, /chat, or PUT /profile.
+# or active_plan — those only change after successful /plan, /plan/save, or PUT /profile.
 
 from __future__ import annotations
 

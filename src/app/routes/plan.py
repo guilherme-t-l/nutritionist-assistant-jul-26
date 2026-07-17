@@ -110,3 +110,41 @@ def create_plan(
         user_store.save_profile_and_plan(username, profile, plan)
 
     return PlanResponse(session_id=session_id, plan=plan)
+
+
+class SavePlanRequest(BaseModel):
+    session_id: str
+
+
+class SavePlanResponse(BaseModel):
+    ok: bool = True
+
+
+# Explicit persist for logged-in users. /chat only updates the in-memory
+# session; this endpoint writes that working plan to active_plan.
+@router.post("/plan/save", response_model=SavePlanResponse)
+def save_plan(
+    body: SavePlanRequest,
+    request: Request,
+    store: SessionStore = Depends(get_session_store),
+    user_store: UserStore = Depends(get_user_store),
+) -> SavePlanResponse:
+    username = get_optional_username(request)
+    if not username:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = user_store.get_user(username)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session = store.get(body.session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Unknown session_id. Call /plan first.",
+        )
+    if session.current_plan is None:
+        raise HTTPException(status_code=400, detail="No plan in session to save.")
+
+    user_store.save_plan(username, session.current_plan)
+    return SavePlanResponse(ok=True)
