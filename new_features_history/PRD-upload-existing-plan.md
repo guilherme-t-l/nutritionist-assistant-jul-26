@@ -2,7 +2,7 @@
 
 ## Goal
 
-Let the user bring an existing meal plan into the app (paste text or upload a file) so chat refinements and persistence work the same as for a generated plan — without forcing them through `POST /plan` generation.
+Let the user bring an existing meal plan into the app (paste text or upload a file — including PDF) so chat refinements and persistence work the same as for a generated plan — without forcing them through `POST /plan` generation.
 
 ## Problem today
 
@@ -39,7 +39,8 @@ Do **not** put “upload plan” as a third path that skips preferences. The for
 ```
 ┌─────────────────────────────────────────────┐
 │  Preferences will be saved with this plan.  │
-│  Paste your plan or choose a file.          │
+│  Paste your plan or choose a file           │
+│  (.txt, .md, .json, .pdf).                  │
 │                                             │
 │  [  paste area / drop zone  ]               │
 │                                             │
@@ -74,13 +75,24 @@ Do **not** put “upload plan” as a third path that skips preferences. The for
 1. User fills onboarding (or **New plan** form) as today.
 2. Chooses **Save & Build New Plan** → existing `POST /plan` path.
 3. Or chooses **Save & Upload Existing Plan** → import UI (prefs kept in memory / form state; not discarded).
-4. User pastes freeform text and/or uploads `.txt` / `.md` / `.json` (MVP: text content only; no OCR/PDF required).
+4. User pastes freeform text and/or uploads `.txt` / `.md` / `.json` / `.pdf`.
 5. `POST /plan/import` (name flexible):
-   - Body: `{ profile: UserProfile, source_text: string }` (file contents read client-side into `source_text`)
+   - Accept either JSON `{ profile, source_text }` (paste / text files read client-side) **or** multipart `profile` + file (PDF and optionally other uploads)
+   - For `.pdf`: extract text **server-side** (e.g. `pypdf` / `pdfplumber`), then treat as `source_text`
    - Server normalizes into `MealPlan` (see below)
    - Creates session like `/plan` (profile + `current_plan` + short history note)
    - Logged-in: `save_profile_and_plan` — **same write rule as successful `/plan`**
 6. Frontend enters split view with returned `session_id` + plan.
+
+### Accepted upload types
+
+| Type | How text is obtained |
+|---|---|
+| Paste | Client sends `source_text` |
+| `.txt` / `.md` / `.json` | Client reads file → `source_text` |
+| `.pdf` | Client uploads file → server extracts text → `source_text` |
+
+MVP PDFs are **text-extractable** documents (nutritionist PDFs, exported plans). Scanned/image-only PDFs that need OCR are out of scope — return a clear “couldn’t read text from this PDF” error.
 
 ### Normalization (MVP)
 
@@ -108,7 +120,7 @@ Guest vs logged-in: same as `/plan` — guests get session-only; logged-in persi
 
 ## Out of scope
 
-- PDF / image OCR
+- OCR for scanned / image-only PDFs (and photo uploads)
 - Multi-day week planners beyond current `MealPlan` (one day of meals)
 - Syncing from MyFitnessPal / Google Sheets APIs
 - Import from prefs-only mode
@@ -118,7 +130,8 @@ Guest vs logged-in: same as `/plan` — guests get session-only; logged-in persi
 
 - [ ] Onboarding / New plan shows **Save & Build New Plan** (primary) and **Save & Upload Existing Plan** (secondary)
 - [ ] Prefs-only mode still shows only **Save preferences**
-- [ ] Paste and file → text both reach the same import endpoint
+- [ ] Paste, text files, and **PDF** all reach the same import → `MealPlan` path
+- [ ] Text-based PDF extracts and imports successfully; empty/unreadable PDF returns a clear error (no partial DB write)
 - [ ] Successful import lands in split UI with a valid `MealPlan` and working `/chat`
 - [ ] Logged-in import persists **both** profile and `active_plan`; guest does not touch `users.db`
 - [ ] Invalid / empty source returns a clear error; no partial DB write
@@ -128,21 +141,28 @@ Guest vs logged-in: same as `/plan` — guests get session-only; logged-in persi
 
 ## Dev plan (simple)
 
-### Step 1 — `POST /plan/import`
+### Step 1 — `POST /plan/import` (text / JSON)
 
 Accept `profile` + `source_text`. Normalize (JSON path + LLM fallback) → session + optional `save_profile_and_plan`. Mirror `/plan` response shape `{ session_id, plan }`.
 
 **Test:** JSON MealPlan body → 200, session has plan; logged-in row has profile + plan. Bad text → error, DB unchanged.
 
-### Step 2 — Onboarding UI
+### Step 2 — PDF extraction
 
-Secondary button → import panel; **Use this plan** calls `/plan/import` with form profile + pasted/file text. **Back** returns to the form without clearing fields.
+Accept PDF upload on the same import route. Extract text server-side; if little/no text, return a clear error. Reuse the Step 1 normalize path.
 
-### Step 3 — Manual check
+**Test:** fixture text PDF → same success path as paste; image-only / empty PDF → error, DB unchanged.
+
+### Step 3 — Onboarding UI
+
+Secondary button → import panel (paste + file picker accepting `.txt`, `.md`, `.json`, `.pdf`); **Use this plan** calls `/plan/import`. **Back** returns to the form without clearing fields.
+
+### Step 4 — Manual check
 
 1. Fill prefs → **Save & Build New Plan** → same as today  
 2. Fill prefs → **Save & Upload Existing Plan** → paste a simple day plan → split UI + chat tweak works  
-3. Logged-in: reload → imported plan + prefs still there  
-4. Prefs-only path: still no upload control  
+3. Same path with a text PDF → plan appears  
+4. Logged-in: reload → imported plan + prefs still there  
+5. Prefs-only path: still no upload control  
 
 **Done when:** acceptance criteria above can be ticked.

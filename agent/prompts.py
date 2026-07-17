@@ -20,6 +20,18 @@ _GOAL_PHRASING = {
 
 _INITIAL_USER_MESSAGE = "Generate my meal plan based on my goals and preferences."
 
+_IMPORT_USER_MESSAGE_PREFIX = (
+    "Convert the following meal plan into the required MealPlan JSON schema. "
+    "Keep the user's meals and ingredients as close as possible — do not "
+    "rewrite them to match preferences:\n\n"
+)
+
+_IMPORT_ADAPT_USER_MESSAGE_PREFIX = (
+    "Here is my existing meal plan. Edit it to match my preferences "
+    "(targets, allergies, dislikes, cuisines, meals per day). Keep what "
+    "already fits; change what doesn't:\n\n"
+)
+
 
 # Called from /plan AND /chat on every request. Turns a UserProfile (and, once
 # it exists, the latest MealPlan) into the "system" instruction string we send
@@ -75,6 +87,18 @@ def build_system_prompt(profile: UserProfile, plan: MealPlan | None = None) -> s
 # the task.
 def build_initial_user_message() -> str:
     return _INITIAL_USER_MESSAGE
+
+
+# Called from /plan/import when source_text is not already MealPlan JSON
+# (as_is mode). The pasted/extracted plan body is the user turn.
+def build_import_user_message(source_text: str) -> str:
+    return _IMPORT_USER_MESSAGE_PREFIX + source_text.strip()
+
+
+# Called from /plan/import in adapt mode — ask the model to edit the plan
+# against the profile already in the system prompt.
+def build_import_adapt_user_message(source_text: str) -> str:
+    return _IMPORT_ADAPT_USER_MESSAGE_PREFIX + source_text.strip()
 
 
 # Short note stored in history instead of the full MealPlan JSON. Prefer the

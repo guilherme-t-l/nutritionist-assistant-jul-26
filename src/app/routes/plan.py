@@ -1,18 +1,19 @@
 # POST /plan — one-shot meal plan generation.
-#
-# This is the very first request any user makes: they fill in the onboarding
-# form, submit it, and this handler returns the initial meal plan plus a
-# `session_id` they'll reuse in /chat for follow-up refinements.
+# POST /plan/import — bring an existing plan (paste / file / PDF).
+# POST /plan/save — explicit persist of the working plan (logged-in).
 #
 # Keep this file thin: no calorie math, no prompt strings, no LLM details.
 # All of that lives in the agent/ package.
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
 from agent.llm import LLM, Message
+from agent.plan_import import ImportMode, extract_pdf_text, normalize_meal_plan
 from agent.prompts import (
     build_assistant_note,
     build_initial_user_message,
@@ -30,11 +31,18 @@ from src.app.routes.auth import get_optional_username
 router = APIRouter()
 
 
-# The JSON shape /plan returns: the session id the frontend must remember
-# for future /chat calls, plus the initial meal plan.
+# The JSON shape /plan and /plan/import return: the session id the frontend
+# must remember for future /chat calls, plus the meal plan.
 class PlanResponse(BaseModel):
     session_id: str
     plan: MealPlan
+
+
+class ImportPlanRequest(BaseModel):
+    profile: UserProfile
+    source_text: str
+    # as_is = keep plan as written; adapt = rewrite to match preferences.
+    mode: ImportMode = "as_is"
 
 
 # Handler for POST /plan. Called by FastAPI when the frontend submits the
@@ -110,6 +118,120 @@ def create_plan(
         user_store.save_profile_and_plan(username, profile, plan)
 
     return PlanResponse(session_id=session_id, plan=plan)
+
+
+def _commit_imported_plan(
+    *,
+    profile: UserProfile,
+    plan: MealPlan,
+    mode: ImportMode,
+    request: Request,
+    store: SessionStore,
+    user_store: UserStore,
+) -> PlanResponse:
+    """Create session + optional DB write — shared by JSON and multipart import."""
+    session_id, session = store.create(profile)
+    session.current_plan = plan
+    # History mirrors /plan: a short user task + assistant note (not full JSON).
+    if mode == "adapt":
+        user_turn = "Import my meal plan and edit it to match my preferences."
+    else:
+        user_turn = "Import my existing meal plan as-is."
+    session.history.append(Message(role="user", content=user_turn))
+    session.history.append(Message(role="model", content=build_assistant_note(plan)))
+
+    username = get_optional_username(request)
+    if username:
+        user_store.save_profile_and_plan(username, profile, plan)
+
+    return PlanResponse(session_id=session_id, plan=plan)
+
+
+def _parse_import_mode(raw: object) -> ImportMode:
+    if raw is None or raw == "":
+        return "as_is"
+    if isinstance(raw, str) and raw in ("as_is", "adapt"):
+        return raw  # type: ignore[return-value]
+    raise HTTPException(
+        status_code=422,
+        detail="mode must be 'as_is' or 'adapt'.",
+    )
+
+
+# JSON body path: paste or client-read .txt/.md/.json → { profile, source_text, mode }.
+@router.post("/plan/import", response_model=PlanResponse)
+async def import_plan(
+    request: Request,
+    llm: LLM = Depends(get_llm),
+    store: SessionStore = Depends(get_session_store),
+    user_store: UserStore = Depends(get_user_store),
+) -> PlanResponse:
+    content_type = (request.headers.get("content-type") or "").lower()
+    mode: ImportMode = "as_is"
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        profile_raw = form.get("profile")
+        if profile_raw is None or not isinstance(profile_raw, str):
+            raise HTTPException(
+                status_code=422,
+                detail="multipart import requires a 'profile' JSON field.",
+            )
+        try:
+            profile = UserProfile.model_validate_json(profile_raw)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        mode = _parse_import_mode(form.get("mode"))
+        upload = form.get("file")
+        source_text_field = form.get("source_text")
+        source_text = ""
+
+        if upload is not None and hasattr(upload, "read"):
+            data = await upload.read()
+            filename = (getattr(upload, "filename", None) or "").lower()
+            if filename.endswith(".pdf") or (
+                getattr(upload, "content_type", None) or ""
+            ).lower() == "application/pdf":
+                source_text = extract_pdf_text(data)
+            else:
+                try:
+                    source_text = data.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Couldn't decode this file as text. Use UTF-8 or upload a PDF.",
+                    ) from exc
+        elif isinstance(source_text_field, str):
+            source_text = source_text_field
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide a file or source_text with the plan to import.",
+            )
+    else:
+        try:
+            body = ImportPlanRequest.model_validate(await request.json())
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Request body must be JSON { profile, source_text, mode? }.",
+            ) from exc
+        profile = body.profile
+        source_text = body.source_text
+        mode = body.mode
+
+    plan = normalize_meal_plan(source_text, profile, llm, mode=mode)
+    return _commit_imported_plan(
+        profile=profile,
+        plan=plan,
+        mode=mode,
+        request=request,
+        store=store,
+        user_store=user_store,
+    )
 
 
 class SavePlanRequest(BaseModel):

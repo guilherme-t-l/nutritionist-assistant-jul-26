@@ -269,6 +269,79 @@
     .btn-secondary:hover { background: var(--accent-soft); }
     .welcome .btn-primary { width: 100%; }
 
+    .form-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      margin-top: 1.25rem;
+      align-items: center;
+    }
+    .form-actions .btn-primary,
+    .form-actions .btn-secondary {
+      margin-top: 0;
+      width: auto;
+    }
+    .form-actions .btn-ghost { margin: 0; }
+    .form-actions.prefs-only .btn-upload { display: none; }
+
+    .import-panel {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    .import-panel h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.15rem;
+    }
+    .import-panel .import-helper {
+      margin: 0 0 1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .import-drop {
+      border: 1.5px dashed var(--border-strong);
+      border-radius: 8px;
+      padding: 0.85rem;
+      background: var(--panel-2);
+    }
+    .import-drop textarea {
+      margin-top: 0;
+      min-height: 8rem;
+      resize: vertical;
+    }
+    .import-file-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.65rem;
+      margin-top: 0.75rem;
+    }
+    .import-file-row input[type="file"] {
+      font-size: 0.9rem;
+      max-width: 100%;
+    }
+    .import-file-name {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .import-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      margin-top: 1rem;
+      align-items: center;
+    }
+    .import-actions .btn-primary,
+    .import-actions .btn-secondary,
+    .import-actions .btn-ghost {
+      margin-top: 0;
+      width: auto;
+    }
+    .import-actions .btn-secondary:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
     /* Chat thread */
     .chat-thread {
       overflow-y: auto;
@@ -630,10 +703,31 @@
         <label for="disliked_ingredients">Dislikes <span class="hint">(comma-separated — you just don't enjoy them)</span></label>
         <input id="disliked_ingredients" name="disliked_ingredients" type="text" placeholder="cilantro, liver" />
 
-        <button type="submit" id="submit-btn" class="btn-primary">Build my meal plan</button>
-        <button type="button" id="cancel-form-btn" class="btn-ghost hidden" style="margin-top: 0.75rem; margin-left: 0.5rem;">Cancel</button>
+        <div id="form-actions" class="form-actions">
+          <button type="submit" id="submit-btn" class="btn-primary">Save &amp; Build New Plan</button>
+          <button type="button" id="upload-plan-btn" class="btn-secondary btn-upload">Save &amp; Upload Existing Plan</button>
+          <button type="button" id="cancel-form-btn" class="btn-ghost hidden">Cancel</button>
+        </div>
         <p id="form-error" class="error hidden"></p>
       </form>
+
+      <div id="import-panel" class="import-panel hidden">
+        <h2>Bring your plan</h2>
+        <p class="import-helper">Your preferences will be saved together with this plan. Paste your plan or choose a file (.txt, .md, .json, .pdf). Use this plan keeps it as written; Edit adapts it to your preferences.</p>
+        <div class="import-drop">
+          <textarea id="import-text" rows="8" placeholder="Paste your meal plan here…"></textarea>
+          <div class="import-file-row">
+            <input id="import-file" type="file" accept=".txt,.md,.json,.pdf,text/plain,application/json,application/pdf" />
+            <span id="import-file-name" class="import-file-name"></span>
+          </div>
+        </div>
+        <div class="import-actions">
+          <button type="button" id="import-submit-btn" class="btn-primary">Use this plan</button>
+          <button type="button" id="import-adapt-btn" class="btn-secondary">Edit this plan (based on preferences)</button>
+          <button type="button" id="import-back-btn" class="btn-ghost">Back</button>
+        </div>
+        <p id="import-error" class="error hidden"></p>
+      </div>
     </section>
   </main>
 
@@ -817,9 +911,11 @@
       $("onboarding-subtitle").textContent = prefs
         ? "Update your preferences. Your current meal plan stays the same."
         : "A Brazilian AI nutritionist. Tell it about you; it builds a day of meals.";
-      $("submit-btn").textContent = prefs ? "Save preferences" : "Build my meal plan";
+      $("submit-btn").textContent = prefs ? "Save preferences" : "Save & Build New Plan";
+      $("form-actions").classList.toggle("prefs-only", prefs);
       // Cancel only when returning to an existing split session (logged-in prefs/new plan).
       $("cancel-form-btn").classList.toggle("hidden", !(isLoggedIn() && state.plan));
+      hideImportPanel();
       $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.remove("hidden");
       $("split-view").classList.add("hidden");
@@ -1076,13 +1172,61 @@
     }
 
     // ---------- Onboarding / prefs submit ----------
+    function formatApiError(detail) {
+      if (detail == null) return "Request failed";
+      if (typeof detail === "string") return detail;
+      if (Array.isArray(detail)) {
+        return detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+      }
+      return String(detail);
+    }
+
+    function hideImportPanel() {
+      $("import-panel").classList.add("hidden");
+      $("profile-form").classList.remove("hidden");
+      $("import-error").classList.add("hidden");
+    }
+
+    function showImportPanel() {
+      $("import-error").classList.add("hidden");
+      $("profile-form").classList.add("hidden");
+      $("import-panel").classList.remove("hidden");
+      $("import-text").focus();
+    }
+
+    function enterPlanFromResponse(data, calorieTarget, profilePayload) {
+      state.sessionId = data.session_id;
+      state.calorieTarget = calorieTarget;
+      state.profile = profilePayload;
+      state.plan = data.plan;
+      state.messages = [
+        {
+          role: "assistant",
+          text: assistantNote(data.plan, "Here's your meal plan. Ask me to adjust anything."),
+        },
+      ];
+      persistSession(data.session_id, calorieTarget);
+      persistPlan(data.plan);
+      markPlanClean();
+      showSplitView();
+    }
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Couldn't read that file."));
+        reader.readAsText(file);
+      });
+    }
+
     $("profile-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = $("submit-btn");
       const err = $("form-error");
       err.classList.add("hidden");
       btn.disabled = true;
-      const idleLabel = state.formMode === "prefs" ? "Save preferences" : "Build my meal plan";
+      const idleLabel = state.formMode === "prefs" ? "Save preferences" : "Save & Build New Plan";
       btn.textContent = state.formMode === "prefs" ? "Saving…" : "Thinking…";
 
       const payload = collectProfilePayload();
@@ -1096,8 +1240,8 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
-          if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(formatApiError(data.detail) || res.statusText);
           state.profile = data.profile;
           state.calorieTarget = data.profile.calorie_target;
           if (state.sessionId) persistSession(state.sessionId, state.calorieTarget);
@@ -1109,24 +1253,9 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-          const data = await res.json();
-
-          state.sessionId = data.session_id;
-          state.calorieTarget = calorieTarget;
-          state.profile = payload;
-          state.plan = data.plan;
-          state.messages = [
-            {
-              role: "assistant",
-              text: assistantNote(data.plan, "Here's your meal plan. Ask me to adjust anything."),
-            },
-          ];
-          persistSession(data.session_id, calorieTarget);
-          persistPlan(data.plan);
-          // /plan already wrote active_plan for logged-in users.
-          markPlanClean();
-          showSplitView();
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(formatApiError(data.detail) || res.statusText);
+          enterPlanFromResponse(data, calorieTarget, payload);
         }
       } catch (ex) {
         err.textContent = ex.message;
@@ -1137,7 +1266,96 @@
       }
     });
 
+    $("upload-plan-btn").addEventListener("click", () => {
+      if (state.formMode === "prefs") return;
+      const err = $("form-error");
+      err.classList.add("hidden");
+      // HTML5 constraint validation without submitting the form.
+      if (!$("profile-form").reportValidity()) return;
+      showImportPanel();
+    });
+
+    $("import-back-btn").addEventListener("click", () => {
+      hideImportPanel();
+    });
+
+    $("import-file").addEventListener("change", () => {
+      const file = $("import-file").files && $("import-file").files[0];
+      $("import-file-name").textContent = file ? file.name : "";
+    });
+
+    async function runImport(mode) {
+      const useBtn = $("import-submit-btn");
+      const adaptBtn = $("import-adapt-btn");
+      const err = $("import-error");
+      err.classList.add("hidden");
+      useBtn.disabled = true;
+      adaptBtn.disabled = true;
+      const useIdle = "Use this plan";
+      const adaptIdle = "Edit this plan (based on preferences)";
+      if (mode === "adapt") {
+        adaptBtn.textContent = "Editing…";
+      } else {
+        useBtn.textContent = "Importing…";
+      }
+
+      const payload = collectProfilePayload();
+      const calorieTarget = payload.calorie_target;
+      const pasted = $("import-text").value.trim();
+      const file = $("import-file").files && $("import-file").files[0];
+
+      try {
+        if (!pasted && !file) {
+          throw new Error("Paste your plan or choose a file.");
+        }
+
+        let res;
+        if (file && /\.pdf$/i.test(file.name)) {
+          const formData = new FormData();
+          formData.append("profile", JSON.stringify(payload));
+          formData.append("mode", mode);
+          formData.append("file", file, file.name);
+          res = await fetch("/plan/import", { method: "POST", body: formData });
+        } else {
+          let sourceText = pasted;
+          if (file) {
+            const fileText = (await readFileAsText(file)).trim();
+            sourceText = sourceText ? `${sourceText}\n\n${fileText}` : fileText;
+          }
+          if (!sourceText.trim()) {
+            throw new Error("That file looked empty. Paste your plan or try another file.");
+          }
+          res = await fetch("/plan/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              profile: payload,
+              source_text: sourceText,
+              mode,
+            }),
+          });
+        }
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(formatApiError(data.detail) || res.statusText);
+        hideImportPanel();
+        enterPlanFromResponse(data, calorieTarget, payload);
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.classList.remove("hidden");
+      } finally {
+        useBtn.disabled = false;
+        adaptBtn.disabled = false;
+        useBtn.textContent = useIdle;
+        adaptBtn.textContent = adaptIdle;
+      }
+    }
+
+    $("import-submit-btn").addEventListener("click", () => runImport("as_is"));
+    $("import-adapt-btn").addEventListener("click", () => runImport("adapt"));
+
     $("cancel-form-btn").addEventListener("click", () => {
+      hideImportPanel();
       showSplitView();
     });
 
