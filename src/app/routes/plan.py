@@ -1,6 +1,7 @@
 # POST /plan — one-shot meal plan generation.
 # POST /plan/import — bring an existing plan (paste / file / PDF).
 # POST /plan/save — explicit persist of the working plan (logged-in).
+# POST /plan/discard — restore working plan from saved active_plan (logged-in).
 #
 # Keep this file thin: no calorie math, no prompt strings, no LLM details.
 # All of that lives in the agent/ package.
@@ -270,3 +271,46 @@ def save_plan(
 
     user_store.save_plan(username, session.current_plan)
     return SavePlanResponse(ok=True)
+
+
+class DiscardPlanRequest(BaseModel):
+    session_id: str
+
+
+class DiscardPlanResponse(BaseModel):
+    plan: MealPlan
+
+
+# Restore the in-memory working plan from DB active_plan. Does not write
+# users.db. Clears session history so chat no longer refers to discarded edits.
+@router.post("/plan/discard", response_model=DiscardPlanResponse)
+def discard_plan(
+    body: DiscardPlanRequest,
+    request: Request,
+    store: SessionStore = Depends(get_session_store),
+    user_store: UserStore = Depends(get_user_store),
+) -> DiscardPlanResponse:
+    username = get_optional_username(request)
+    if not username:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = user_store.get_user(username)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if user.active_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No saved plan to restore.",
+        )
+
+    session = store.get(body.session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Unknown session_id. Call /plan first.",
+        )
+
+    # Memory only — must not call any UserStore save method.
+    session.current_plan = user.active_plan
+    session.history.clear()
+    return DiscardPlanResponse(plan=user.active_plan)

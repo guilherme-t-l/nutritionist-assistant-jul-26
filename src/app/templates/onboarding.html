@@ -578,7 +578,13 @@
       gap: 0.25rem;
       flex-shrink: 0;
     }
-    .plan-save-btn {
+    .plan-save-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .plan-save-btn,
+    .plan-discard-btn {
       appearance: none;
       display: inline-flex;
       align-items: center;
@@ -596,7 +602,8 @@
       box-shadow: none;
       transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.15s ease;
     }
-    .plan-save-btn:disabled {
+    .plan-save-btn:disabled,
+    .plan-discard-btn:disabled {
       opacity: 1;
       cursor: default;
       color: var(--muted-soft);
@@ -620,7 +627,21 @@
       border-color: var(--accent);
       color: var(--surface);
     }
-    .plan-save-btn svg {
+    .plan-discard-btn.is-dirty:not(:disabled) {
+      color: var(--ink);
+      border-color: var(--line-strong);
+      background: var(--surface);
+      animation: plan-save-in 0.28s ease-out;
+    }
+    .plan-discard-btn.is-dirty:not(:disabled):hover {
+      background: var(--surface-mute);
+    }
+    .plan-discard-btn.is-dirty:disabled {
+      opacity: 0.7;
+      cursor: wait;
+    }
+    .plan-save-btn svg,
+    .plan-discard-btn svg {
       width: 14px;
       height: 14px;
       flex-shrink: 0;
@@ -634,7 +655,7 @@
       color: var(--danger);
       font-size: 0.75rem;
       text-align: right;
-      max-width: 12rem;
+      max-width: 14rem;
       z-index: 2;
     }
     @keyframes plan-save-in {
@@ -1446,14 +1467,26 @@
               <h2 class="plan-toolbar-title">Today's menu</h2>
             </div>
             <div id="plan-save" class="plan-save hidden">
-              <button id="save-plan-btn" class="plan-save-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                  <path d="M17 21v-8H7v8"/>
-                  <path d="M7 3v5h8"/>
-                </svg>
-                <span id="save-plan-label">Save plan</span>
-              </button>
+              <div class="plan-save-actions">
+                <button id="discard-plan-btn" class="plan-discard-btn" type="button" disabled>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h18"/>
+                    <path d="M8 6V4h8v2"/>
+                    <path d="M19 6l-1 14H6L5 6"/>
+                    <path d="M10 11v6"/>
+                    <path d="M14 11v6"/>
+                  </svg>
+                  <span id="discard-plan-label">Discard</span>
+                </button>
+                <button id="save-plan-btn" class="plan-save-btn" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <path d="M17 21v-8H7v8"/>
+                    <path d="M7 3v5h8"/>
+                  </svg>
+                  <span id="save-plan-label">Save plan</span>
+                </button>
+              </div>
               <p id="plan-save-error" class="plan-save-error hidden"></p>
             </div>
           </div>
@@ -1522,6 +1555,7 @@
       // Logged-in only: true when session plan differs from last saved active_plan.
       planDirty: false,
       savingPlan: false,
+      discardingPlan: false,
     };
 
     function safeParseJson(raw) {
@@ -1549,6 +1583,7 @@
       state.activeDayIndex = 0;
       state.planDirty = false;
       state.savingPlan = false;
+      state.discardingPlan = false;
     }
 
     function isLoggedIn() {
@@ -1568,9 +1603,11 @@
 
     function updateSavePlanButton() {
       const wrap = $("plan-save");
-      const btn = $("save-plan-btn");
-      const label = $("save-plan-label");
-      if (!wrap || !btn || !label) return;
+      const saveBtn = $("save-plan-btn");
+      const saveLabel = $("save-plan-label");
+      const discardBtn = $("discard-plan-btn");
+      const discardLabel = $("discard-plan-label");
+      if (!wrap || !saveBtn || !saveLabel || !discardBtn || !discardLabel) return;
       // Logged-in with a plan: always show in the plan panel top-right.
       const show = isLoggedIn() && !!state.plan;
       wrap.classList.toggle("hidden", !show);
@@ -1578,17 +1615,17 @@
         $("plan-save-error").classList.add("hidden");
         return;
       }
-      const canSave = state.planDirty && !state.savingPlan && !state.waiting;
-      btn.disabled = !canSave;
-      btn.classList.toggle("is-dirty", state.planDirty);
-      if (state.savingPlan) label.textContent = "Saving…";
-      else if (state.planDirty) label.textContent = "Save plan";
-      else label.textContent = "Saved";
-    }
-
-    function confirmDiscardUnsaved() {
-      if (!state.planDirty) return true;
-      return window.confirm("You have unsaved plan changes. Discard them?");
+      const busy = state.savingPlan || state.discardingPlan || state.waiting;
+      const canAct = state.planDirty && !busy;
+      saveBtn.disabled = !canAct;
+      discardBtn.disabled = !canAct;
+      saveBtn.classList.toggle("is-dirty", state.planDirty);
+      discardBtn.classList.toggle("is-dirty", state.planDirty);
+      if (state.savingPlan) saveLabel.textContent = "Saving…";
+      else if (state.planDirty) saveLabel.textContent = "Save plan";
+      else saveLabel.textContent = "Saved";
+      if (state.discardingPlan) discardLabel.textContent = "Discarding…";
+      else discardLabel.textContent = "Discard";
     }
 
     function updateHeaderActions() {
@@ -2194,7 +2231,15 @@
     });
 
     $("save-plan-btn").addEventListener("click", async () => {
-      if (!isLoggedIn() || !state.planDirty || state.savingPlan || state.waiting) return;
+      if (
+        !isLoggedIn() ||
+        !state.planDirty ||
+        state.savingPlan ||
+        state.discardingPlan ||
+        state.waiting
+      ) {
+        return;
+      }
       const err = $("plan-save-error");
       err.classList.add("hidden");
       if (!state.sessionId) {
@@ -2221,15 +2266,52 @@
       }
     });
 
-    window.addEventListener("beforeunload", (e) => {
-      if (!state.planDirty) return;
-      e.preventDefault();
-      e.returnValue = "";
+    $("discard-plan-btn").addEventListener("click", async () => {
+      if (
+        !isLoggedIn() ||
+        !state.planDirty ||
+        state.savingPlan ||
+        state.discardingPlan ||
+        state.waiting
+      ) {
+        return;
+      }
+      const err = $("plan-save-error");
+      err.classList.add("hidden");
+      if (!state.sessionId) {
+        err.textContent = "Session missing. Start a new plan.";
+        err.classList.remove("hidden");
+        return;
+      }
+      state.discardingPlan = true;
+      updateSavePlanButton();
+      try {
+        const res = await fetch("/plan/discard", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: state.sessionId }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        const data = await res.json();
+        state.plan = data.plan;
+        state.messages = [];
+        state.activeDayIndex = 0;
+        persistPlan(data.plan);
+        markPlanClean();
+        renderPlan(state.plan);
+        renderChat();
+        playViewEnter($("plan-card"));
+      } catch (ex) {
+        err.textContent = ex.message || "Could not discard changes.";
+        err.classList.remove("hidden");
+      } finally {
+        state.discardingPlan = false;
+        updateSavePlanButton();
+      }
     });
 
     // ---------- Header actions ----------
     $("new-plan-btn").addEventListener("click", () => {
-      if (!confirmDiscardUnsaved()) return;
       if (isLoggedIn()) {
         fillProfileForm(state.profile);
         showOnboarding("plan");
@@ -2241,7 +2323,6 @@
     });
 
     $("new-chat-btn").addEventListener("click", async () => {
-      if (!confirmDiscardUnsaved()) return;
       try {
         await resumeConversation();
       } catch (ex) {
@@ -2251,13 +2332,11 @@
     });
 
     $("update-prefs-btn").addEventListener("click", () => {
-      if (!confirmDiscardUnsaved()) return;
       fillProfileForm(state.profile);
       showOnboarding("prefs");
     });
 
     $("logout-btn").addEventListener("click", async () => {
-      if (!confirmDiscardUnsaved()) return;
       try {
         await fetch("/logout", { method: "POST" });
       } catch {
