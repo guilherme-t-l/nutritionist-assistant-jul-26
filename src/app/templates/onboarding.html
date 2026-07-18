@@ -4,276 +4,309 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NutriAgent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #f7f5f0;
-      --panel: #ffffff;
-      --panel-2: #fafaf7;
-      --ink: #1f2937;
-      --muted: #6b7280;
-      --accent: #2f855a;
-      --accent-soft: #e8f3ec;
-      --accent-ink: #1f6a48;
-      --border: #e5e7eb;
-      --border-strong: #d1d5db;
-      --user-bubble: #2f855a;
-      --user-ink: #ffffff;
-      --assistant-bubble: #f1efea;
-      --assistant-ink: #1f2937;
-      --danger: #b91c1c;
-      --ok: #2f855a;
-      --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);
+      --canvas: #ebe6de;
+      --canvas-deep: #e2dcd2;
+      --surface: #faf8f4;
+      --surface-raised: #fffcf7;
+      --surface-mute: #f3efe8;
+
+      --ink: #1c1b19;
+      --ink-soft: #3a3834;
+      --muted: #6e6a62;
+      --muted-soft: #8a857c;
+
+      /* Botanical olive (primary) + softer sage (secondary) */
+      --accent: #3a4a38;
+      --accent-hover: #2f3d2e;
+      --accent-ink: #2a3529;
+      --sage: #7d917c;
+      --sage-soft: #e6ebe4;
+      --accent-soft: #e4e8e1;
+
+      --line: rgba(28, 27, 25, 0.08);
+      --line-strong: rgba(28, 27, 25, 0.14);
+
+      --user-bubble: #3a4a38;
+      --user-ink: #faf8f4;
+      --assistant-bubble: #f0ebe3;
+      --assistant-ink: #1c1b19;
+
+      --danger: #8f3a32;
+      --ok: #3a4a38;
+
+      --shadow: 0 1px 0 rgba(28, 27, 25, 0.04), 0 12px 40px rgba(28, 27, 25, 0.06);
+      --shadow-soft: 0 8px 28px rgba(28, 27, 25, 0.05);
+
+      --font-display: "Fraunces", Georgia, serif;
+      --font-body: "Figtree", system-ui, sans-serif;
+
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+
+      --max-welcome: 28rem;
+      --max-form: 40rem;
+      --max-plan: 42rem;
+
+      /* Back-compat aliases used nowhere critical, kept for safety */
+      --bg: var(--canvas);
+      --panel: var(--surface);
+      --panel-2: var(--surface-mute);
+      --border: var(--line);
+      --border-strong: var(--line-strong);
     }
+
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      background: var(--bg);
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: 400;
+      background: linear-gradient(180deg, var(--canvas) 0%, var(--canvas-deep) 100%);
+      background-attachment: fixed;
       color: var(--ink);
-      line-height: 1.5;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     .hidden { display: none !important; }
 
-    /* ---------- Onboarding view (same form, slightly polished) ---------- */
-    .onboarding {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 2rem 1rem 3rem;
-    }
-    .onboarding h1 { margin-bottom: 0.25rem; }
-    .onboarding .subtitle { color: var(--muted); margin-top: 0; }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      box-shadow: var(--shadow);
-    }
-    label { display: block; margin-top: 1rem; font-weight: 600; }
-    .hint { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
-    input[type="text"], input[type="password"], input[type="number"], select, textarea {
-      width: 100%;
-      padding: 0.55rem 0.7rem;
-      margin-top: 0.25rem;
-      border: 1px solid var(--border-strong);
-      border-radius: 6px;
-      font-size: 1rem;
-      font-family: inherit;
-      background: var(--panel);
+    h1, h2, h3 {
+      font-family: var(--font-display);
+      font-weight: 500;
+      letter-spacing: -0.02em;
       color: var(--ink);
     }
+
+    /* ---------- Buttons ---------- */
+    .btn-primary {
+      margin-top: 1.25rem;
+      background: var(--accent);
+      color: var(--surface);
+      border: 0;
+      padding: 0.8rem 1.35rem;
+      min-height: 44px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.08s ease;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-primary:active:not(:disabled) { transform: translateY(1px); }
+    .btn-primary:disabled { opacity: 0.55; cursor: wait; }
+
+    .btn-secondary {
+      width: 100%;
+      margin-top: 0;
+      background: transparent;
+      color: var(--accent-ink);
+      border: 1px solid var(--sage);
+      padding: 0.8rem 1.35rem;
+      min-height: 44px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease;
+    }
+    .btn-secondary:hover { background: var(--sage-soft); border-color: var(--accent); }
+    .btn-secondary:disabled { opacity: 0.55; cursor: wait; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 0;
+      border-bottom: 1px solid transparent;
+      padding: 0.35rem 0.15rem;
+      border-radius: 0;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-ghost:hover {
+      color: var(--accent-ink);
+      border-bottom-color: var(--sage);
+    }
+
+    .error {
+      color: var(--danger);
+      margin-top: 0.65rem;
+      font-size: 0.85rem;
+    }
+
+    /* ---------- Forms ---------- */
+    label {
+      display: block;
+      margin-top: 1.35rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    .hint {
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.75rem 0.9rem;
+      margin-top: 0.4rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      font-family: inherit;
+      background: var(--surface-raised);
+      color: var(--ink);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
     input:focus, select:focus, textarea:focus {
-      outline: 2px solid var(--accent);
-      outline-offset: 1px;
+      outline: none;
       border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--sage-soft);
     }
     .checkbox-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 0.4rem 1rem;
-      margin-top: 0.4rem;
+      gap: 0.5rem 1rem;
+      margin-top: 0.55rem;
     }
     .checkbox-grid label {
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: 0.5rem;
       margin: 0;
+      padding: 0.45rem 0.55rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
       font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background 0.15s ease;
     }
-    .checkbox-grid input[type="checkbox"] { width: auto; margin: 0; }
+    .checkbox-grid label:hover { background: var(--surface-mute); }
+    .checkbox-grid input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+      accent-color: var(--accent);
+    }
     .macro-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 0.5rem;
+      gap: 0.75rem;
     }
-    .macro-row > div > label { margin-top: 0.5rem; font-size: 0.9rem; }
-    .btn-primary {
-      margin-top: 1.25rem;
-      background: var(--accent);
-      color: white;
-      border: 0;
-      padding: 0.65rem 1.2rem;
-      border-radius: 6px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s ease, transform 0.05s ease;
+    .macro-row > div > label {
+      margin-top: 0.55rem;
+      font-size: 0.68rem;
     }
-    .btn-primary:hover:not(:disabled) { background: #256b48; }
-    .btn-primary:active:not(:disabled) { transform: translateY(1px); }
-    .btn-primary:disabled { opacity: 0.6; cursor: wait; }
-    .error { color: var(--danger); margin-top: 0.5rem; }
 
-    /* ---------- Split-panel app layout ---------- */
-    .app {
-      display: grid;
-      grid-template-columns: 45% 55%;
-      height: 100vh;
-      width: 100%;
-      background: var(--bg);
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 2rem 1.75rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
     }
-    .chat-panel {
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      background: var(--panel);
-      border-right: 1px solid var(--border);
-      min-width: 0;
-      height: 100vh;
+
+    .subtitle {
+      color: var(--muted);
+      margin-top: 0;
+      font-size: 1.05rem;
+      line-height: 1.5;
+      font-weight: 400;
     }
-    .plan-panel {
-      overflow-y: auto;
-      padding: 1.5rem;
-      min-width: 0;
-      height: 100vh;
-    }
-    .plan-save {
+
+    /* ---------- Welcome ---------- */
+    .welcome {
+      min-height: 100%;
       display: flex;
       flex-direction: column;
-      align-items: flex-end;
-      gap: 0.35rem;
-      max-width: 760px;
-      width: 100%;
-      margin: 0 auto 0.85rem;
-    }
-    .plan-save-btn {
-      appearance: none;
-      display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
-      padding: 0.48rem 1rem 0.48rem 0.85rem;
-      border: 0;
-      border-radius: 999px;
-      background: var(--accent);
-      color: #fff;
-      font-family: inherit;
-      font-size: 0.84rem;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      cursor: pointer;
-      box-shadow:
-        0 1px 2px rgba(31, 106, 72, 0.18),
-        0 6px 16px rgba(47, 133, 90, 0.22);
-      transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-      animation: plan-save-in 0.22s ease-out;
-    }
-    .plan-save-btn:hover:not(:disabled) {
-      background: #256b48;
-      box-shadow:
-        0 1px 2px rgba(31, 106, 72, 0.2),
-        0 8px 20px rgba(47, 133, 90, 0.28);
-    }
-    .plan-save-btn:active:not(:disabled) { transform: translateY(1px); }
-    .plan-save-btn:disabled {
-      opacity: 0.4;
-      cursor: default;
-      box-shadow: none;
-      background: #8a9a90;
-    }
-    .plan-save-btn.is-dirty:disabled {
-      opacity: 0.55;
-      cursor: wait;
-      background: var(--accent);
-      box-shadow: none;
-    }
-    .plan-save-btn svg {
-      width: 14px;
-      height: 14px;
-      flex-shrink: 0;
-    }
-    .plan-save-error {
-      margin: 0;
-      color: var(--danger);
-      font-size: 0.8rem;
-      text-align: right;
-      max-width: 16rem;
-    }
-    @keyframes plan-save-in {
-      from { opacity: 0; transform: translateY(-6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Chat header */
-    .chat-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.9rem 1.25rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--panel);
-    }
-    .chat-header .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: 700;
-      font-size: 1.05rem;
-      letter-spacing: -0.01em;
-    }
-    .chat-header .brand .dot {
-      width: 10px; height: 10px; border-radius: 999px;
-      background: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-      padding: 0.35rem 0.7rem;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
-    }
-    .btn-ghost:hover { color: var(--accent-ink); border-color: var(--accent); background: var(--accent-soft); }
-    .header-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
-
-    /* Welcome view */
-    .welcome {
-      max-width: 420px;
+      justify-content: center;
+      max-width: var(--max-welcome);
       margin: 0 auto;
-      padding: 3rem 1rem 3rem;
+      padding: 3.5rem 1.25rem 4rem;
     }
-    .welcome h1 { margin-bottom: 0.25rem; }
-    .welcome .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 1.5rem; }
+    .welcome h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(2.5rem, 6vw, 3.4rem);
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      text-align: center;
+      line-height: 1.1;
+    }
+    .welcome .subtitle {
+      text-align: center;
+      margin-bottom: 2rem;
+      max-width: 22rem;
+    }
+    .welcome .card {
+      width: 100%;
+      padding: 2rem 1.75rem 1.85rem;
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
     .welcome-divider {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      margin: 1.25rem 0;
-      color: var(--muted);
-      font-size: 0.85rem;
+      gap: 0.85rem;
+      margin: 1.5rem 0;
+      color: var(--muted-soft);
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
     .welcome-divider::before,
     .welcome-divider::after {
       content: "";
       flex: 1;
       height: 1px;
-      background: var(--border-strong);
+      background: var(--line-strong);
     }
-    .btn-secondary {
-      width: 100%;
-      margin-top: 0;
-      background: var(--panel);
-      color: var(--accent-ink);
-      border: 1px solid var(--accent);
-      padding: 0.65rem 1.2rem;
-      border-radius: 6px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s ease;
+    .welcome .btn-primary { width: 100%; margin-top: 1.35rem; }
+    .welcome .btn-secondary { width: 100%; }
+    .welcome label { margin-top: 1rem; }
+
+    /* ---------- Onboarding ---------- */
+    .onboarding {
+      max-width: var(--max-form);
+      margin: 0 auto;
+      padding: 3rem 1.25rem 4.5rem;
     }
-    .btn-secondary:hover { background: var(--accent-soft); }
-    .welcome .btn-primary { width: 100%; }
+    .onboarding h1 {
+      margin: 0 0 0.4rem;
+      font-size: clamp(2rem, 4vw, 2.5rem);
+      font-weight: 500;
+    }
+    .onboarding .subtitle { margin-bottom: 1.75rem; }
+    .onboarding .card { padding: 2rem 1.85rem 2.1rem; }
 
     .form-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.65rem;
-      margin-top: 1.25rem;
+      gap: 0.75rem;
+      margin-top: 1.75rem;
       align-items: center;
     }
     .form-actions .btn-primary,
@@ -281,54 +314,57 @@
       margin-top: 0;
       width: auto;
     }
-    .form-actions .btn-ghost { margin: 0; }
+    .form-actions .btn-ghost { margin: 0; padding: 0.5rem 0.25rem; }
     .form-actions.prefs-only .btn-upload { display: none; }
 
+    /* ---------- Import ---------- */
     .import-panel {
-      margin-top: 1.25rem;
-      padding-top: 1.25rem;
-      border-top: 1px solid var(--border);
+      margin-top: 0.25rem;
+      padding-top: 0.25rem;
     }
     .import-panel h2 {
-      margin: 0 0 0.35rem;
-      font-size: 1.15rem;
+      margin: 0 0 0.45rem;
+      font-size: 1.45rem;
+      font-weight: 500;
     }
     .import-panel .import-helper {
-      margin: 0 0 1rem;
+      margin: 0 0 1.25rem;
       color: var(--muted);
-      font-size: 0.92rem;
+      font-size: 0.95rem;
+      line-height: 1.55;
     }
     .import-drop {
-      border: 1.5px dashed var(--border-strong);
-      border-radius: 8px;
-      padding: 0.85rem;
-      background: var(--panel-2);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-lg);
+      padding: 1.1rem;
+      background: var(--surface-mute);
     }
     .import-drop textarea {
       margin-top: 0;
-      min-height: 8rem;
+      min-height: 9rem;
       resize: vertical;
+      background: var(--surface-raised);
     }
     .import-file-row {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.65rem;
-      margin-top: 0.75rem;
+      margin-top: 0.85rem;
     }
     .import-file-row input[type="file"] {
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       max-width: 100%;
     }
     .import-file-name {
       color: var(--muted);
-      font-size: 0.85rem;
+      font-size: 0.82rem;
     }
     .import-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.65rem;
-      margin-top: 1rem;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
       align-items: center;
     }
     .import-actions .btn-primary,
@@ -337,60 +373,327 @@
       margin-top: 0;
       width: auto;
     }
-    .import-actions .btn-secondary:disabled {
-      opacity: 0.6;
-      cursor: wait;
+
+    /* ---------- Split app ---------- */
+    .app {
+      --app-gutter-y: 1.75rem;
+      --app-gutter-x: 3.75rem;
+      --panel-head-h: 7rem;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100vh;
+      width: 100%;
+      background: linear-gradient(180deg, var(--canvas) 0%, var(--canvas-deep) 100%);
+      overflow: hidden;
+    }
+    .app-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem var(--app-gutter-x);
+      background: rgba(255, 252, 247, 0.82);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      flex-shrink: 0;
+    }
+    .app-bar .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      flex-shrink: 0;
+    }
+    .app-bar .brand .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--sage);
+    }
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .header-actions-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+    }
+    .header-actions-divider {
+      width: 1px;
+      height: 1.1rem;
+      background: var(--line-strong);
+      margin: 0 0.35rem;
+    }
+    .btn-nav {
+      appearance: none;
+      background: var(--surface);
+      color: var(--ink-soft);
+      border: 1px solid var(--line-strong);
+      padding: 0.42rem 0.8rem;
+      min-height: 36px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .btn-nav:hover {
+      background: var(--sage-soft);
+      border-color: var(--sage);
+      color: var(--accent-ink);
+    }
+    .btn-nav-quiet {
+      background: transparent;
+      border-color: transparent;
+      color: var(--muted);
+    }
+    .btn-nav-quiet:hover {
+      background: var(--surface-mute);
+      border-color: transparent;
+      color: var(--ink-soft);
     }
 
-    /* Chat thread */
-    .chat-thread {
-      overflow-y: auto;
-      padding: 1.25rem 1.25rem 0.5rem;
+    .app-body {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      grid-template-rows: minmax(0, 1fr);
+      align-items: stretch;
+      justify-items: stretch;
+      min-height: 0;
+      height: 100%;
+      /* Left = middle gap = right; vertical inset separate */
+      column-gap: var(--app-gutter-x);
+      row-gap: 0;
+      padding: var(--app-gutter-y) var(--app-gutter-x);
+      box-sizing: border-box;
+    }
+    .chat-panel,
+    .plan-panel {
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+      align-self: stretch;
+      background: transparent;
+      border: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.6rem;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* Elevated shells — identical height + framing in each column */
+    .chat-shell,
+    .plan-stage {
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+      overflow: hidden;
+    }
+    .chat-shell {
+      display: grid;
+      grid-template-rows: var(--panel-head-h) minmax(0, 1fr) auto;
+    }
+    .chat-shell-head,
+    .plan-toolbar {
+      height: var(--panel-head-h);
+      min-height: var(--panel-head-h);
+      max-height: var(--panel-head-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0 1.35rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-raised);
+      box-sizing: border-box;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .chat-shell-copy,
+    .plan-toolbar-copy {
+      min-width: 0;
+    }
+    .chat-shell-kicker,
+    .plan-toolbar-kicker {
+      margin: 0 0 0.15rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--sage);
+    }
+    .chat-shell-title,
+    .plan-toolbar-title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      line-height: 1.25;
+    }
+    .chat-shell-lead {
+      margin: 0.3rem 0 0;
+      font-size: 0.88rem;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    /* Plan stage = same shell geometry as chat (shared rules above) */
+    .plan-stage {
+      position: relative;
+      display: grid;
+      grid-template-rows: var(--panel-head-h) minmax(0, 1fr);
+    }
+    .plan-stage > .plan-toolbar { grid-row: 1; }
+    .plan-stage > .plan-card { grid-row: 2; min-height: 0; }
+    .plan-stage > .plan-busy {
+      grid-row: 1 / -1;
+      grid-column: 1;
+    }
+    .plan-save {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .plan-save-btn {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.48rem 0.95rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--muted);
+      font-family: var(--font-body);
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      box-shadow: none;
+      transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.15s ease;
+    }
+    .plan-save-btn:disabled {
+      opacity: 1;
+      cursor: default;
+      color: var(--muted-soft);
+      background: var(--surface-mute);
+      border-color: var(--line);
+    }
+    .plan-save-btn.is-dirty:not(:disabled) {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--surface);
+      animation: plan-save-in 0.28s ease-out;
+    }
+    .plan-save-btn.is-dirty:not(:disabled):hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+    .plan-save-btn.is-dirty:disabled {
+      opacity: 0.7;
+      cursor: wait;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--surface);
+    }
+    .plan-save-btn svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      opacity: 0.85;
+    }
+    .plan-save-error {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      right: 0;
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.75rem;
+      text-align: right;
+      max-width: 12rem;
+      z-index: 2;
+    }
+    @keyframes plan-save-in {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ---------- Chat ---------- */
+    .chat-thread {
+      overflow-y: auto;
+      padding: 1.35rem 1.25rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
       scroll-behavior: smooth;
+      background: var(--surface);
+      min-height: 0;
     }
     .bubble {
-      max-width: 82%;
-      padding: 0.6rem 0.85rem;
-      border-radius: 14px;
+      max-width: 84%;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-lg);
       font-size: 0.95rem;
       white-space: pre-wrap;
       word-wrap: break-word;
-      line-height: 1.4;
-      animation: bubble-in 0.18s ease-out;
+      line-height: 1.5;
+      animation: bubble-in 0.22s ease-out;
     }
     @keyframes bubble-in {
-      from { opacity: 0; transform: translateY(4px); }
+      from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
     .bubble.user {
       align-self: flex-end;
       background: var(--user-bubble);
       color: var(--user-ink);
-      border-bottom-right-radius: 4px;
+      border-bottom-right-radius: var(--radius-sm);
     }
     .bubble.assistant {
       align-self: flex-start;
       background: var(--assistant-bubble);
       color: var(--assistant-ink);
-      border-bottom-left-radius: 4px;
+      border-bottom-left-radius: var(--radius-sm);
     }
 
-    /* Typing indicator */
     .typing {
       align-self: flex-start;
       background: var(--assistant-bubble);
       color: var(--muted);
-      padding: 0.6rem 0.85rem;
-      border-radius: 14px;
-      border-bottom-left-radius: 4px;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-lg);
+      border-bottom-left-radius: var(--radius-sm);
       display: inline-flex;
-      gap: 4px;
+      gap: 5px;
     }
     .typing span {
-      width: 6px; height: 6px; border-radius: 999px;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
       background: currentColor;
       opacity: 0.5;
       animation: blink 1.2s infinite;
@@ -402,116 +705,154 @@
       40% { opacity: 1; transform: translateY(-2px); }
     }
 
-    /* Chat input */
     .chat-input-area {
-      border-top: 1px solid var(--border);
-      padding: 0.75rem 1rem 1rem;
-      background: var(--panel);
+      border-top: 1px solid var(--line);
+      padding: 0.9rem 1.1rem 1.15rem;
+      background: var(--surface-raised);
     }
     .chat-input-row {
       display: flex;
       align-items: flex-end;
-      gap: 0.5rem;
-      border: 1px solid var(--border-strong);
-      border-radius: 14px;
-      padding: 0.45rem 0.5rem 0.45rem 0.75rem;
-      background: var(--panel);
-      transition: border-color 0.15s;
+      gap: 0.55rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      padding: 0.5rem 0.55rem 0.5rem 0.9rem;
+      background: var(--surface);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .chat-input-row:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
+      box-shadow: 0 0 0 3px var(--sage-soft);
     }
     .chat-input-row textarea {
       flex: 1;
       margin: 0;
       border: 0;
-      padding: 0.3rem 0;
+      padding: 0.35rem 0;
       resize: none;
       outline: none !important;
       box-shadow: none !important;
       font-size: 0.95rem;
-      line-height: 1.4;
-      max-height: calc(1.4em * 4 + 0.6em);
+      line-height: 1.45;
+      max-height: calc(1.45em * 4 + 0.6em);
       overflow-y: auto;
       background: transparent;
     }
     .chat-input-row textarea:focus { outline: none; border: 0; }
     .send-btn {
       background: var(--accent);
-      color: white;
+      color: var(--surface);
       border: 0;
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       flex-shrink: 0;
-      transition: background 0.15s, opacity 0.15s;
+      transition: background 0.15s ease, opacity 0.15s ease;
     }
-    .send-btn:hover:not(:disabled) { background: #256b48; }
-    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .send-btn svg { width: 16px; height: 16px; }
-    .chat-input-error { color: var(--danger); font-size: 0.85rem; margin: 0.4rem 0.25rem 0; }
+    .chat-input-error {
+      color: var(--danger);
+      font-size: 0.82rem;
+      margin: 0.45rem 0.25rem 0;
+    }
 
-    /* ---------- Meal plan card ---------- */
+    /* ---------- Meal plan (editorial) ---------- */
     .plan-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1.5rem;
-      box-shadow: var(--shadow);
-      max-width: 760px;
-      margin: 0 auto;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 1.5rem 1.6rem 1.85rem;
+      box-shadow: none;
+      max-width: none;
+      margin: 0;
+      min-height: 0;
+      overflow-y: auto;
     }
     .plan-empty {
-      max-width: 760px;
-      margin: 3rem auto;
+      min-height: 100%;
+      margin: 0;
       text-align: center;
       color: var(--muted);
+      padding: 2rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
+    .plan-empty-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      margin: 0 0 0.4rem;
+    }
+    .plan-empty-copy {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
     .day-tabs {
       display: flex;
-      gap: 0.4rem;
-      margin-bottom: 1.25rem;
+      gap: 1.25rem;
+      margin-bottom: 1.75rem;
       flex-wrap: wrap;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 0.15rem;
     }
     .day-tab {
-      padding: 0.35rem 0.8rem;
-      border-radius: 999px;
-      border: 1px solid var(--border-strong);
-      background: var(--panel);
+      padding: 0.45rem 0.1rem 0.65rem;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      background: transparent;
       color: var(--muted);
       cursor: pointer;
+      font-family: var(--font-body);
       font-size: 0.85rem;
       font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-bottom: -1px;
+      transition: color 0.15s ease, border-color 0.15s ease;
     }
+    .day-tab:hover { color: var(--ink-soft); }
     .day-tab.active {
-      background: var(--accent-soft);
-      border-color: var(--accent);
+      background: transparent;
+      border-bottom-color: var(--sage);
       color: var(--accent-ink);
     }
 
-    .meal-block { padding: 0.75rem 0 1rem; }
-    .meal-block + .meal-block { border-top: 1px solid var(--border); }
+    .meal-block {
+      padding: 1.15rem 0 1.35rem;
+    }
+    .meal-block + .meal-block {
+      border-top: 1px solid var(--line);
+    }
     .meal-head {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
       gap: 0.5rem;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.35rem;
     }
     .meal-name {
-      font-size: 1.05rem;
-      font-weight: 700;
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      font-weight: 500;
+      letter-spacing: -0.015em;
       margin: 0;
     }
     .meal-desc {
       color: var(--muted);
       font-size: 0.9rem;
-      margin: 0 0 0.6rem;
+      margin: 0 0 0.85rem;
+      line-height: 1.5;
     }
     .food-list {
       list-style: none;
@@ -519,43 +860,45 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.75rem;
     }
     .food-row {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 0.75rem;
+      gap: 1rem;
       align-items: start;
-      font-size: 0.93rem;
-      padding: 0.1rem 0;
+      font-size: 0.95rem;
+      padding: 0.15rem 0;
     }
     .food-main {
       display: flex;
       flex-direction: column;
-      gap: 0.1rem;
+      gap: 0.15rem;
       min-width: 0;
     }
-    .food-name { color: var(--ink); }
+    .food-name { color: var(--ink); font-weight: 500; }
     .food-qty {
       color: var(--muted);
+      font-weight: 400;
       font-variant-numeric: tabular-nums;
     }
     .food-macros {
-      color: #9ca3af;
+      color: var(--muted-soft);
       font-size: 0.78rem;
       font-variant-numeric: tabular-nums;
-      letter-spacing: 0.01em;
+      letter-spacing: 0.02em;
     }
     .food-meta {
       color: var(--muted);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       padding-top: 0.1rem;
+      font-size: 0.9rem;
     }
     .meal-total {
-      margin-top: 0.75rem;
-      padding-top: 0.55rem;
-      border-top: 1px dashed var(--border);
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--line);
       color: var(--muted);
       font-size: 0.88rem;
       font-variant-numeric: tabular-nums;
@@ -566,142 +909,462 @@
     .meal-total strong { color: var(--ink); font-weight: 600; }
 
     .day-total {
-      margin-top: 1.25rem;
-      padding-top: 1rem;
-      border-top: 2px solid var(--ink);
+      margin-top: 1.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--ink);
       display: flex;
       justify-content: space-between;
       gap: 1rem;
       font-variant-numeric: tabular-nums;
+      align-items: baseline;
     }
-    .day-total .label { font-weight: 700; }
+    .day-total .label {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+      text-transform: none;
+    }
     .day-total .macros { color: var(--muted); }
+    .day-total .macros strong {
+      color: var(--ink);
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
     .target-row {
-      margin-top: 0.5rem;
+      margin-top: 0.65rem;
       display: flex;
       justify-content: space-between;
       gap: 1rem;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
-    .delta.ok { color: var(--ok); font-weight: 600; }
+    .delta.ok { color: var(--sage); font-weight: 600; }
     .delta.off { color: var(--danger); font-weight: 600; }
     .plan-notes {
-      margin-top: 1rem;
-      padding-top: 0.75rem;
-      border-top: 1px dashed var(--border);
+      margin-top: 1.35rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
       color: var(--muted);
-      font-size: 0.88rem;
-      font-style: italic;
+      font-size: 0.9rem;
+      font-style: normal;
+      line-height: 1.55;
     }
 
-    /* ---------- Mobile: stack plan on top, chat below ---------- */
+
+    /* ---------- Form sections ---------- */
+    .form-section {
+      margin: 0;
+      padding: 0 0 1.75rem;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      min-inline-size: 0;
+    }
+    .form-section + .form-section { margin-top: 1.5rem; padding-top: 0.25rem; }
+    .form-section:last-of-type {
+      border-bottom: 0;
+      padding-bottom: 0.5rem;
+    }
+    .form-section-title {
+      display: block;
+      float: none;
+      width: 100%;
+      padding: 0;
+      margin: 0 0 0.35rem;
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .form-section-lead {
+      margin: 0 0 0.25rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .form-section > label:first-of-type { margin-top: 1.1rem; }
+    .card.is-working { position: relative; }
+    .card.is-working::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: rgba(250, 248, 244, 0.45);
+      pointer-events: none;
+    }
+
+    /* ---------- Welcome atmosphere ---------- */
+    .welcome {
+      position: relative;
+      min-height: 100%;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .welcome-atmosphere {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 90% 55% at 15% 5%, rgba(125, 145, 124, 0.32), transparent 58%),
+        radial-gradient(ellipse 70% 50% at 90% 75%, rgba(58, 74, 56, 0.14), transparent 55%),
+        radial-gradient(ellipse 50% 35% at 50% 40%, rgba(255, 252, 247, 0.55), transparent 70%),
+        linear-gradient(165deg, #f2ede6 0%, #e8e2d8 42%, #dcd5c9 100%);
+    }
+    .welcome-atmosphere::before {
+      content: "";
+      position: absolute;
+      width: 42rem;
+      height: 42rem;
+      left: -12rem;
+      top: -14rem;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(125, 145, 124, 0.22), transparent 68%);
+      filter: blur(2px);
+    }
+    .welcome-atmosphere::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.4;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+      background-size: 180px 180px;
+      mix-blend-mode: soft-light;
+    }
+    .welcome-inner {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: var(--max-welcome);
+      padding: 3.5rem 1.25rem 4rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .welcome h1,
+    .welcome .subtitle { position: relative; z-index: 1; }
+
+    /* ---------- View enter ---------- */
+    @keyframes view-enter {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .view-enter {
+      animation: view-enter 0.35s ease-out;
+    }
+    .plan-card.view-enter {
+      animation: view-enter 0.4s ease-out;
+    }
+
+    /* ---------- Plan busy overlay ---------- */
+    .plan-busy {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: auto;
+      height: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-lg);
+      background: rgba(250, 248, 244, 0.72);
+      backdrop-filter: blur(2px);
+      pointer-events: none;
+    }
+    .plan-busy-inner {
+      text-align: center;
+      padding: 1.25rem;
+    }
+    .plan-busy-title {
+      margin: 0 0 0.35rem;
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+    }
+    .plan-busy-copy {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .plan-busy-dots {
+      display: inline-flex;
+      gap: 5px;
+      margin-top: 0.85rem;
+    }
+    .plan-busy-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--sage);
+      opacity: 0.5;
+      animation: blink 1.2s infinite;
+    }
+    .plan-busy-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .plan-busy-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    /* ---------- Meal menu polish ---------- */
+    .plan-day-head {
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.15rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .plan-day-kicker {
+      margin: 0 0 0.35rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--sage);
+    }
+    .plan-day-title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.65rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .meal-course {
+      margin: 0 0 0.3rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--sage);
+    }
+    .meal-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+      margin-bottom: 0.65rem;
+    }
+    .meal-name {
+      font-size: 1.3rem;
+    }
+    .meal-accent {
+      display: block;
+      width: 2.25rem;
+      height: 2px;
+      margin-top: 0.55rem;
+      background: var(--sage);
+      border-radius: 999px;
+    }
+    .food-name-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem 0.5rem;
+    }
+    .food-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .food-qty {
+      font-size: 0.88rem;
+    }
+    .food-macros {
+      font-size: 0.76rem;
+    }
+    .food-meta {
+      font-size: 0.85rem;
+      color: var(--muted-soft);
+    }
+    .meal-block {
+      padding: 1.4rem 0 1.5rem;
+    }
+    .food-list { gap: 0.9rem; }
+
+    /* ---------- Mobile ---------- */
     @media (max-width: 768px) {
       .app {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto;
+        --app-gutter-y: 1rem;
+        --app-gutter-x: 1rem;
+        --panel-head-h: 7.25rem;
         height: auto;
         min-height: 100vh;
+        grid-template-rows: auto auto;
+        overflow: visible;
+      }
+      .app-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0.85rem var(--app-gutter-x);
+        position: sticky;
+        top: 0;
+      }
+      .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .header-actions-divider { display: none; }
+      .btn-nav {
+        min-height: 40px;
+        font-size: 0.8rem;
+      }
+      .app-body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        column-gap: 0;
+        row-gap: var(--app-gutter-y);
+        padding: var(--app-gutter-y) var(--app-gutter-x);
+        height: auto;
       }
       .plan-panel {
         order: 1;
         height: auto;
-        max-height: 60vh;
-        border-bottom: 1px solid var(--border);
+        max-height: 48vh;
+        overflow: hidden;
       }
       .chat-panel {
         order: 2;
         height: auto;
-        min-height: 50vh;
-        border-right: 0;
+        min-height: 52vh;
       }
-      .chat-thread { max-height: 40vh; }
+      .chat-shell {
+        min-height: 52vh;
+      }
+      .plan-stage {
+        min-height: 0;
+        height: 100%;
+      }
+      .chat-thread {
+        max-height: none;
+        min-height: 28vh;
+        flex: 1;
+      }
+      .welcome-inner { padding: 2.5rem 1rem 3rem; }
+      .onboarding { padding: 2rem 1rem 3.5rem; }
+      .card { padding: 1.5rem 1.25rem; }
+      .macro-row { grid-template-columns: 1fr; }
+      .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .form-actions .btn-primary,
+      .form-actions .btn-secondary {
+        width: 100%;
+      }
+      .plan-card { padding: 1.2rem 1.1rem 1.4rem; }
+      .chat-shell-head,
+      .plan-toolbar {
+        padding: 0 1.1rem;
+      }
+      .plan-day-title { font-size: 1.4rem; }
+      .send-btn {
+        width: 42px;
+        height: 42px;
+      }
     }
   </style>
 </head>
 <body>
   <!-- WELCOME VIEW -->
   <main id="welcome-view" class="welcome hidden">
-    <h1>Nutritionist AI</h1>
-    <p class="subtitle">Personalized meal plans — guest or saved account.</p>
-    <section class="card">
-      <button type="button" id="guest-btn" class="btn-secondary">Continue as Guest</button>
-      <div class="welcome-divider">or</div>
-      <form id="login-form">
-        <label for="login-username">Username</label>
-        <input id="login-username" name="username" type="text" autocomplete="username" required />
-        <label for="login-password">Password</label>
-        <input id="login-password" name="password" type="password" autocomplete="current-password" required />
-        <button type="submit" id="login-btn" class="btn-primary">Log In</button>
-        <p id="login-error" class="error hidden"></p>
-      </form>
-    </section>
+    <div class="welcome-atmosphere" aria-hidden="true"></div>
+    <div class="welcome-inner">
+      <h1>NutriAgent</h1>
+      <p class="subtitle">Personalized nutrition, quietly considered.</p>
+      <section class="card">
+        <button type="button" id="guest-btn" class="btn-secondary">Continue as Guest</button>
+        <div class="welcome-divider">or</div>
+        <form id="login-form">
+          <label for="login-username">Username</label>
+          <input id="login-username" name="username" type="text" autocomplete="username" required />
+          <label for="login-password">Password</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+          <button type="submit" id="login-btn" class="btn-primary">Log In</button>
+          <p id="login-error" class="error hidden"></p>
+        </form>
+      </section>
+    </div>
   </main>
 
   <!-- ONBOARDING VIEW -->
   <main id="onboarding-view" class="onboarding hidden">
     <h1>NutriAgent</h1>
-    <p id="onboarding-subtitle" class="subtitle">A Brazilian AI nutritionist. Tell it about you; it builds a day of meals.</p>
+    <p id="onboarding-subtitle" class="subtitle">Share a few details — we'll craft a day of meals around you.</p>
 
-    <section class="card">
+    <section class="card" id="prefs-card">
       <form id="profile-form">
-        <label for="goal">Goal</label>
-        <select id="goal" name="goal" required>
-          <option value="lose_weight">Lose weight</option>
-          <option value="maintain" selected>Maintain</option>
-          <option value="gain_muscle">Gain muscle</option>
-        </select>
+        <fieldset class="form-section">
+          <legend class="form-section-title">Goals</legend>
+          <p class="form-section-lead">What you want this plan to support.</p>
 
-        <label for="calorie_target">Daily calorie target (kcal)</label>
-        <input id="calorie_target" name="calorie_target" type="number" min="800" max="5000" value="2000" required />
+          <label for="goal">Goal</label>
+          <select id="goal" name="goal" required>
+            <option value="lose_weight">Lose weight</option>
+            <option value="maintain" selected>Maintain</option>
+            <option value="gain_muscle">Gain muscle</option>
+          </select>
 
-        <label>Macro targets <span class="hint">(optional — leave blank if you only care about calories)</span></label>
-        <div class="macro-row">
-          <div>
-            <label for="protein_g_target">Protein (g)</label>
-            <input id="protein_g_target" type="number" min="0" placeholder="e.g. 150" />
+          <label for="calorie_target">Daily calorie target (kcal)</label>
+          <input id="calorie_target" name="calorie_target" type="number" min="800" max="5000" value="2000" required />
+
+          <label>Macro targets <span class="hint">(optional — leave blank if you only care about calories)</span></label>
+          <div class="macro-row">
+            <div>
+              <label for="protein_g_target">Protein (g)</label>
+              <input id="protein_g_target" type="number" min="0" placeholder="e.g. 150" />
+            </div>
+            <div>
+              <label for="carbs_g_target">Carbs (g)</label>
+              <input id="carbs_g_target" type="number" min="0" placeholder="e.g. 250" />
+            </div>
+            <div>
+              <label for="fat_g_target">Fat (g)</label>
+              <input id="fat_g_target" type="number" min="0" placeholder="e.g. 70" />
+            </div>
           </div>
-          <div>
-            <label for="carbs_g_target">Carbs (g)</label>
-            <input id="carbs_g_target" type="number" min="0" placeholder="e.g. 250" />
+
+          <label for="meals_per_day">Meals per day</label>
+          <input id="meals_per_day" type="number" min="1" max="8" value="3" required />
+        </fieldset>
+
+        <fieldset class="form-section">
+          <legend class="form-section-title">Taste</legend>
+          <p class="form-section-lead">Cuisines and flavors you enjoy.</p>
+
+          <label>Cuisine preferences <span class="hint">(tick any that apply)</span></label>
+          <div class="checkbox-grid" id="cuisines">
+            <label><input type="checkbox" value="Brazilian" checked /> Brazilian</label>
+            <label><input type="checkbox" value="Bahian" /> Bahian</label>
+            <label><input type="checkbox" value="Mineira" /> Mineira</label>
+            <label><input type="checkbox" value="Paulista" /> Paulista</label>
+            <label><input type="checkbox" value="Nordestina" /> Nordestina</label>
+            <label><input type="checkbox" value="Japanese" /> Japanese</label>
+            <label><input type="checkbox" value="Italian" /> Italian</label>
+            <label><input type="checkbox" value="Mediterranean" /> Mediterranean</label>
           </div>
-          <div>
-            <label for="fat_g_target">Fat (g)</label>
-            <input id="fat_g_target" type="number" min="0" placeholder="e.g. 70" />
+
+          <label>Flavor profiles <span class="hint">(tick any that apply)</span></label>
+          <div class="checkbox-grid" id="flavors">
+            <label><input type="checkbox" value="savory" /> Savory</label>
+            <label><input type="checkbox" value="sweet" /> Sweet</label>
+            <label><input type="checkbox" value="spicy" /> Spicy</label>
+            <label><input type="checkbox" value="umami" /> Umami</label>
+            <label><input type="checkbox" value="sour" /> Sour</label>
+            <label><input type="checkbox" value="bitter" /> Bitter</label>
           </div>
-        </div>
+        </fieldset>
 
-        <label for="meals_per_day">Meals per day</label>
-        <input id="meals_per_day" type="number" min="1" max="8" value="3" required />
+        <fieldset class="form-section">
+          <legend class="form-section-title">Constraints</legend>
+          <p class="form-section-lead">Foods to avoid for safety or preference.</p>
 
-        <label>Cuisine preferences <span class="hint">(tick any that apply)</span></label>
-        <div class="checkbox-grid" id="cuisines">
-          <label><input type="checkbox" value="Brazilian" checked /> Brazilian</label>
-          <label><input type="checkbox" value="Bahian" /> Bahian</label>
-          <label><input type="checkbox" value="Mineira" /> Mineira</label>
-          <label><input type="checkbox" value="Paulista" /> Paulista</label>
-          <label><input type="checkbox" value="Nordestina" /> Nordestina</label>
-          <label><input type="checkbox" value="Japanese" /> Japanese</label>
-          <label><input type="checkbox" value="Italian" /> Italian</label>
-          <label><input type="checkbox" value="Mediterranean" /> Mediterranean</label>
-        </div>
+          <label for="allergies">Allergies <span class="hint">(comma-separated — things you cannot safely eat)</span></label>
+          <input id="allergies" name="allergies" type="text" placeholder="peanuts, shellfish" />
 
-        <label>Flavor profiles <span class="hint">(tick any that apply)</span></label>
-        <div class="checkbox-grid" id="flavors">
-          <label><input type="checkbox" value="savory" /> Savory</label>
-          <label><input type="checkbox" value="sweet" /> Sweet</label>
-          <label><input type="checkbox" value="spicy" /> Spicy</label>
-          <label><input type="checkbox" value="umami" /> Umami</label>
-          <label><input type="checkbox" value="sour" /> Sour</label>
-          <label><input type="checkbox" value="bitter" /> Bitter</label>
-        </div>
-
-        <label for="allergies">Allergies <span class="hint">(comma-separated — things you cannot safely eat)</span></label>
-        <input id="allergies" name="allergies" type="text" placeholder="peanuts, shellfish" />
-
-        <label for="disliked_ingredients">Dislikes <span class="hint">(comma-separated — you just don't enjoy them)</span></label>
-        <input id="disliked_ingredients" name="disliked_ingredients" type="text" placeholder="cilantro, liver" />
+          <label for="disliked_ingredients">Dislikes <span class="hint">(comma-separated — you just don't enjoy them)</span></label>
+          <input id="disliked_ingredients" name="disliked_ingredients" type="text" placeholder="cilantro, liver" />
+        </fieldset>
 
         <div id="form-actions" class="form-actions">
           <button type="submit" id="submit-btn" class="btn-primary">Save &amp; Build New Plan</button>
@@ -733,48 +1396,83 @@
 
   <!-- SPLIT-PANEL VIEW -->
   <div id="split-view" class="app hidden">
-    <aside class="chat-panel">
-      <header class="chat-header">
-        <div class="brand">
-          <span class="dot" aria-hidden="true"></span>
-          NutriAgent
+    <header class="app-bar">
+      <div class="brand">
+        <span class="dot" aria-hidden="true"></span>
+        NutriAgent
+      </div>
+      <div class="header-actions">
+        <div class="header-actions-group">
+          <button id="new-chat-btn" class="btn-nav hidden" type="button">New chat</button>
+          <button id="update-prefs-btn" class="btn-nav hidden" type="button">Updated Preferences</button>
+          <button id="new-plan-btn" class="btn-nav" type="button">New plan</button>
         </div>
-        <div class="header-actions">
-          <button id="new-chat-btn" class="btn-ghost hidden" type="button">New chat</button>
-          <button id="update-prefs-btn" class="btn-ghost hidden" type="button">Update preferences</button>
-          <button id="new-plan-btn" class="btn-ghost" type="button">New plan</button>
-          <button id="logout-btn" class="btn-ghost hidden" type="button">Log out</button>
+        <div class="header-actions-divider" aria-hidden="true"></div>
+        <div class="header-actions-group">
+          <button id="logout-btn" class="btn-nav btn-nav-quiet hidden" type="button">Log out</button>
         </div>
-      </header>
-      <div id="chat-thread" class="chat-thread" aria-live="polite"></div>
-      <div class="chat-input-area">
-        <form id="chat-form">
-          <div class="chat-input-row">
-            <textarea id="chat-input" rows="1" placeholder="Ask me to adjust anything…"></textarea>
-            <button id="chat-send" type="submit" class="send-btn" aria-label="Send" disabled>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
-            </button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <aside class="chat-panel">
+        <div class="chat-shell">
+          <div class="chat-shell-head">
+            <div class="chat-shell-copy">
+              <h2 class="chat-shell-title">Coach Chat</h2>
+              <p class="chat-shell-lead">Want to eat something different or already did? Ask for a swap, a new meal, or a quick tweak.</p>
+            </div>
           </div>
-          <p id="chat-error" class="chat-input-error hidden"></p>
-        </form>
-      </div>
-    </aside>
-    <main class="plan-panel">
-      <div id="plan-save" class="plan-save hidden">
-        <button id="save-plan-btn" class="plan-save-btn" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-            <path d="M17 21v-8H7v8"/>
-            <path d="M7 3v5h8"/>
-          </svg>
-          <span id="save-plan-label">Save plan</span>
-        </button>
-        <p id="plan-save-error" class="plan-save-error hidden"></p>
-      </div>
-      <div id="plan-card" class="plan-card">
-        <div class="plan-empty">Your meal plan will appear here.</div>
-      </div>
-    </main>
+          <div id="chat-thread" class="chat-thread" aria-live="polite"></div>
+          <div class="chat-input-area">
+            <form id="chat-form">
+              <div class="chat-input-row">
+                <textarea id="chat-input" rows="1" placeholder="Try: Swap dinner for something lighter…"></textarea>
+                <button id="chat-send" type="submit" class="send-btn" aria-label="Send" disabled>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+                </button>
+              </div>
+              <p id="chat-error" class="chat-input-error hidden"></p>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <main class="plan-panel">
+        <div class="plan-stage">
+          <div class="plan-toolbar">
+            <div class="plan-toolbar-copy">
+              <p class="plan-toolbar-kicker">Meal Plan</p>
+              <h2 class="plan-toolbar-title">Today's menu</h2>
+            </div>
+            <div id="plan-save" class="plan-save hidden">
+              <button id="save-plan-btn" class="plan-save-btn" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                  <path d="M17 21v-8H7v8"/>
+                  <path d="M7 3v5h8"/>
+                </svg>
+                <span id="save-plan-label">Save plan</span>
+              </button>
+              <p id="plan-save-error" class="plan-save-error hidden"></p>
+            </div>
+          </div>
+          <div id="plan-busy" class="plan-busy hidden" aria-live="polite">
+            <div class="plan-busy-inner">
+              <p class="plan-busy-title">Updating your plan</p>
+              <p class="plan-busy-copy">Just a moment…</p>
+              <div class="plan-busy-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div id="plan-card" class="plan-card">
+            <div class="plan-empty">
+              <p class="plan-empty-title">Your meal plan</p>
+              <p class="plan-empty-copy">It will appear here once ready.</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
 
   <script>
@@ -883,7 +1581,9 @@
       const canSave = state.planDirty && !state.savingPlan && !state.waiting;
       btn.disabled = !canSave;
       btn.classList.toggle("is-dirty", state.planDirty);
-      label.textContent = state.savingPlan ? "Saving…" : "Save plan";
+      if (state.savingPlan) label.textContent = "Saving…";
+      else if (state.planDirty) label.textContent = "Save plan";
+      else label.textContent = "Saved";
     }
 
     function confirmDiscardUnsaved() {
@@ -896,7 +1596,28 @@
       $("new-chat-btn").classList.toggle("hidden", !loggedIn);
       $("update-prefs-btn").classList.toggle("hidden", !loggedIn);
       $("logout-btn").classList.toggle("hidden", !loggedIn);
+      const divider = document.querySelector(".header-actions-divider");
+      if (divider) divider.classList.toggle("hidden", !loggedIn);
       updateSavePlanButton();
+    }
+
+
+    function playViewEnter(el) {
+      if (!el) return;
+      el.classList.remove("view-enter");
+      void el.offsetWidth;
+      el.classList.add("view-enter");
+    }
+
+    function updatePlanBusy() {
+      const busy = $("plan-busy");
+      if (!busy) return;
+      busy.classList.toggle("hidden", !state.waiting);
+    }
+
+    function setPrefsWorking(on) {
+      const card = $("prefs-card");
+      if (card) card.classList.toggle("is-working", !!on);
     }
 
     // ---------- View switching ----------
@@ -904,13 +1625,14 @@
       $("welcome-view").classList.remove("hidden");
       $("onboarding-view").classList.add("hidden");
       $("split-view").classList.add("hidden");
+      playViewEnter($("welcome-view"));
     }
     function showOnboarding(mode = "plan") {
       state.formMode = mode;
       const prefs = mode === "prefs";
       $("onboarding-subtitle").textContent = prefs
-        ? "Update your preferences. Your current meal plan stays the same."
-        : "A Brazilian AI nutritionist. Tell it about you; it builds a day of meals.";
+        ? "Update your preferences. Your current meal plan stays as it is."
+        : "Share a few details — we'll craft a day of meals around you.";
       $("submit-btn").textContent = prefs ? "Save preferences" : "Save & Build New Plan";
       $("form-actions").classList.toggle("prefs-only", prefs);
       // Cancel only when returning to an existing split session (logged-in prefs/new plan).
@@ -919,14 +1641,17 @@
       $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.remove("hidden");
       $("split-view").classList.add("hidden");
+      playViewEnter($("onboarding-view"));
     }
     function showSplitView() {
       $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.add("hidden");
       $("split-view").classList.remove("hidden");
       updateHeaderActions();
+      updatePlanBusy();
       renderPlan(state.plan);
       renderChat();
+      playViewEnter($("plan-card"));
       // Auto-grow textarea + focus
       setTimeout(() => {
         autosizeTextarea($("chat-input"));
@@ -1050,10 +1775,12 @@
       return [{ meals: plan.meals || [], notes: plan.notes || "" }];
     }
 
+    const MEAL_COURSES = ["Breakfast", "Lunch", "Dinner", "Snack", "Snack", "Snack", "Snack", "Snack"];
+
     function renderPlan(plan) {
       const card = $("plan-card");
       if (!plan || !plan.meals || plan.meals.length === 0) {
-        card.innerHTML = `<div class="plan-empty">Your meal plan will appear here.</div>`;
+        card.innerHTML = `<div class="plan-empty"><p class="plan-empty-title">Your meal plan</p><p class="plan-empty-copy">It will appear here once ready.</p></div>`;
         return;
       }
 
@@ -1073,9 +1800,16 @@
         html += `</div>`;
       }
 
-      for (const meal of day.meals) {
-        html += renderMeal(meal);
+      const toolbarTitle = document.querySelector(".plan-toolbar-title");
+      if (toolbarTitle) {
+        toolbarTitle.textContent = multiDay
+          ? `Day ${state.activeDayIndex + 1} of ${days.length}`
+          : "Today's menu";
       }
+
+      day.meals.forEach((meal, i) => {
+        html += renderMeal(meal, i);
+      });
 
       // Daily totals — sum across meals. Schema gives us per-meal P/C/F/kcal
       // as computed fields, so we just aggregate on the client.
@@ -1127,7 +1861,8 @@
       });
     }
 
-    function renderMeal(meal) {
+    function renderMeal(meal, index = 0) {
+      const course = MEAL_COURSES[index] || `Meal ${index + 1}`;
       const foods = (meal.ingredients || []).map((food) => {
         const p = food.protein_g ?? 0;
         const c = food.carbs_g ?? 0;
@@ -1135,7 +1870,10 @@
         return `
           <li class="food-row">
             <span class="food-main">
-              <span class="food-name">${escapeHtml(food.name)} · <span class="food-qty">${escapeHtml(food.quantity)}</span></span>
+              <span class="food-name-line">
+                <span class="food-name">${escapeHtml(food.name)}</span>
+                <span class="food-qty">${escapeHtml(food.quantity)}</span>
+              </span>
               <span class="food-macros">P ${p}g · C ${c}g · F ${f}g</span>
             </span>
             <span class="food-meta">${food.calories} kcal</span>
@@ -1148,7 +1886,9 @@
       return `
         <section class="meal-block">
           <div class="meal-head">
+            <p class="meal-course">${course}</p>
             <h3 class="meal-name">${escapeHtml(meal.name || "")}</h3>
+            <span class="meal-accent" aria-hidden="true"></span>
           </div>
           ${desc}
           <ul class="food-list">${foods}</ul>
@@ -1228,6 +1968,7 @@
       btn.disabled = true;
       const idleLabel = state.formMode === "prefs" ? "Save preferences" : "Save & Build New Plan";
       btn.textContent = state.formMode === "prefs" ? "Saving…" : "Thinking…";
+      setPrefsWorking(true);
 
       const payload = collectProfilePayload();
       const calorieTarget = payload.calorie_target;
@@ -1261,6 +2002,7 @@
         err.textContent = ex.message;
         err.classList.remove("hidden");
       } finally {
+        setPrefsWorking(false);
         btn.disabled = false;
         btn.textContent = idleLabel;
       }
@@ -1298,6 +2040,7 @@
       } else {
         useBtn.textContent = "Importing…";
       }
+      setPrefsWorking(true);
 
       const payload = collectProfilePayload();
       const calorieTarget = payload.calorie_target;
@@ -1344,6 +2087,7 @@
         err.textContent = ex.message;
         err.classList.remove("hidden");
       } finally {
+        setPrefsWorking(false);
         useBtn.disabled = false;
         adaptBtn.disabled = false;
         useBtn.textContent = useIdle;
@@ -1401,6 +2145,7 @@
       state.waiting = true;
       updateSendEnabled();
       updateSavePlanButton();
+      updatePlanBusy();
       renderChat();
 
       try {
@@ -1430,11 +2175,14 @@
         }
 
         state.waiting = false;
+        updatePlanBusy();
         pushMessage("assistant", replyText);
         renderPlan(state.plan);
+        playViewEnter($("plan-card"));
         updateSavePlanButton();
       } catch (ex) {
         state.waiting = false;
+        updatePlanBusy();
         err.textContent = ex.message;
         err.classList.remove("hidden");
         renderChat();
