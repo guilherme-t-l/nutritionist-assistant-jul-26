@@ -28,6 +28,6 @@ build/
 # Phase 3 eval traces — local artefact, not source of truth
 traces.db
 
-# Durable user accounts (profile + active plan) — local MVP DB
+# Durable user accounts now live in Supabase — local SQLite file is obsolete
 users.db
 

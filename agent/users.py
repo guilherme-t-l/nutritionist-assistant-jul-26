@@ -1,27 +1,17 @@
-# SQLite-backed store for durable user accounts (profile + active meal plan).
+# Supabase-backed store for durable user accounts (profile + active meal plan).
 #
-# Guests never touch this file — they stay in SessionStore (memory only).
-# Do not reuse traces.db; auth/persistence lives in users.db.
+# Guests never touch this file — they stay in SessionStore.
+# Talks to Supabase over HTTPS (service-role key) — safe for serverless.
 
 from __future__ import annotations
 
-import sqlite3
+import json
+import os
 from dataclasses import dataclass
-from pathlib import Path
+
+from supabase import Client, create_client
 
 from agent.schemas import MealPlan, UserProfile
-
-# Project root / users.db — separate from traces.db.
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "users.db"
-
-# MVP hardcoded credentials. Plaintext is intentional for this learning MVP.
-DEMO_USERS: list[tuple[str, str]] = [
-    ("demo1", "password1"),
-    ("demo2", "password2"),
-    ("demo3", "password3"),
-    ("demo4", "password4"),
-    ("demo5", "password5"),
-]
 
 
 @dataclass
@@ -31,58 +21,86 @@ class UserRecord:
     active_plan: MealPlan | None
 
 
+def _require_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(
+            f"Missing {name}. Add it to .env (local) or Vercel env vars (deploy)."
+        )
+    return value
+
+
+def _demo_passwords() -> dict[str, str]:
+    """Parse DEMO_USER_PASSWORDS JSON, e.g. {"demo1":"password1",...}."""
+    raw = _require_env("DEMO_USER_PASSWORDS")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "DEMO_USER_PASSWORDS must be valid JSON, "
+            'e.g. {"demo1":"password1","demo2":"password2"}'
+        ) from exc
+    if not isinstance(data, dict) or not data:
+        raise RuntimeError("DEMO_USER_PASSWORDS must be a non-empty JSON object.")
+    return {str(k): str(v) for k, v in data.items()}
+
+
 class UserStore:
     """Tiny repository: credentials + durable profile/plan per username."""
 
-    def __init__(self, db_path: Path | str = DEFAULT_DB_PATH) -> None:
-        self._db_path = Path(db_path)
-        self._init_db()
-
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    username TEXT PRIMARY KEY,
-                    password TEXT NOT NULL,
-                    profile_json TEXT,
-                    active_plan_json TEXT
-                )
-                """
+    def __init__(self, client: Client | None = None) -> None:
+        if client is None:
+            client = create_client(
+                _require_env("SUPABASE_URL"),
+                _require_env("SUPABASE_SERVICE_ROLE_KEY"),
             )
-            for username, password in DEMO_USERS:
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO users (username, password, profile_json, active_plan_json)
-                    VALUES (?, ?, NULL, NULL)
-                    """,
-                    (username, password),
-                )
-            conn.commit()
+        self._client = client
+        self._seed_demo_users()
+
+    def _seed_demo_users(self) -> None:
+        """Insert demo rows if missing — never overwrite an existing password."""
+        for username, password in _demo_passwords().items():
+            existing = (
+                self._client.table("users")
+                .select("username")
+                .eq("username", username)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                continue
+            self._client.table("users").insert(
+                {
+                    "username": username,
+                    "password": password,
+                    "profile_json": None,
+                    "active_plan_json": None,
+                }
+            ).execute()
 
     def verify_credentials(self, username: str, password: str) -> bool:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT password FROM users WHERE username = ?",
-                (username,),
-            ).fetchone()
-        if row is None:
+        result = (
+            self._client.table("users")
+            .select("password")
+            .eq("username", username)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
             return False
-        return row["password"] == password
+        return result.data[0]["password"] == password
 
     def get_user(self, username: str) -> UserRecord | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT username, profile_json, active_plan_json FROM users WHERE username = ?",
-                (username,),
-            ).fetchone()
-        if row is None:
+        result = (
+            self._client.table("users")
+            .select("username, profile_json, active_plan_json")
+            .eq("username", username)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
             return None
+        row = result.data[0]
         profile = (
             UserProfile.model_validate_json(row["profile_json"])
             if row["profile_json"]
@@ -101,33 +119,34 @@ class UserStore:
 
     def save_profile(self, username: str, profile: UserProfile) -> None:
         """Update profile_json only — leaves active_plan_json alone."""
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE users SET profile_json = ? WHERE username = ?",
-                (profile.model_dump_json(), username),
-            )
-            conn.commit()
+        (
+            self._client.table("users")
+            .update({"profile_json": profile.model_dump_json()})
+            .eq("username", username)
+            .execute()
+        )
 
     def save_plan(self, username: str, plan: MealPlan) -> None:
         """Update active_plan_json only — leaves profile_json alone."""
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE users SET active_plan_json = ? WHERE username = ?",
-                (plan.model_dump_json(), username),
-            )
-            conn.commit()
+        (
+            self._client.table("users")
+            .update({"active_plan_json": plan.model_dump_json()})
+            .eq("username", username)
+            .execute()
+        )
 
     def save_profile_and_plan(
         self, username: str, profile: UserProfile, plan: MealPlan
     ) -> None:
         """Write both columns — used after a successful POST /plan."""
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE users
-                SET profile_json = ?, active_plan_json = ?
-                WHERE username = ?
-                """,
-                (profile.model_dump_json(), plan.model_dump_json(), username),
+        (
+            self._client.table("users")
+            .update(
+                {
+                    "profile_json": profile.model_dump_json(),
+                    "active_plan_json": plan.model_dump_json(),
+                }
             )
-            conn.commit()
+            .eq("username", username)
+            .execute()
+        )

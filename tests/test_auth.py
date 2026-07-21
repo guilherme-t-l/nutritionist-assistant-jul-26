@@ -2,29 +2,21 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent.schemas import MealPlan, UserProfile
-from agent.session import SessionStore
-from agent.users import UserStore
 from src.app.dependencies import get_llm, get_session_store, get_user_store
 from src.app.main import app
 from src.app.routes.auth import COOKIE_NAME
-from tests.conftest import CANNED_PLAN_JSON, FakeLLM
-
-
-@pytest.fixture
-def user_store(tmp_path: Path) -> UserStore:
-    return UserStore(tmp_path / "users.db")
+from tests.conftest import CANNED_PLAN_JSON, FakeLLM, FakeSessionStore, FakeUserStore
 
 
 @pytest.fixture
 def auth_client(
-    fake_llm: FakeLLM, session_store: SessionStore, user_store: UserStore
+    fake_llm: FakeLLM, session_store: FakeSessionStore, user_store: FakeUserStore
 ) -> Iterator[TestClient]:
     app.dependency_overrides[get_llm] = lambda: fake_llm
     app.dependency_overrides[get_session_store] = lambda: session_store
@@ -60,7 +52,7 @@ def test_login_bad_password_returns_401(auth_client: TestClient) -> None:
 
 
 def test_login_does_not_mutate_db(
-    auth_client: TestClient, user_store: UserStore
+    auth_client: TestClient, user_store: FakeUserStore
 ) -> None:
     profile = UserProfile(goal="maintain", calorie_target=2000)
     plan = MealPlan.model_validate_json(CANNED_PLAN_JSON)
@@ -89,7 +81,7 @@ def test_auth_me_requires_cookie(auth_client: TestClient) -> None:
 
 
 def test_auth_me_returns_user_with_plan(
-    auth_client: TestClient, user_store: UserStore
+    auth_client: TestClient, user_store: FakeUserStore
 ) -> None:
     profile = UserProfile(goal="lose_weight", calorie_target=1800)
     plan = MealPlan.model_validate_json(CANNED_PLAN_JSON)

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from agent.schemas import MealPlan
-from agent.users import UserStore
 from fastapi.testclient import TestClient
 
-from tests.conftest import CANNED_PLAN_JSON, FakeLLM
+from tests.conftest import CANNED_PLAN_JSON, FakeLLM, FakeUserStore
 
 
 PLAN_BODY = {
@@ -18,7 +17,7 @@ PLAN_BODY = {
 
 
 def test_guest_plan_does_not_write_db(
-    client: TestClient, user_store: UserStore
+    client: TestClient, user_store: FakeUserStore
 ) -> None:
     response = client.post("/plan", json=PLAN_BODY)
     assert response.status_code == 200, response.text
@@ -30,7 +29,7 @@ def test_guest_plan_does_not_write_db(
 
 
 def test_logged_in_plan_writes_profile_and_plan(
-    client: TestClient, user_store: UserStore
+    client: TestClient, user_store: FakeUserStore
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     response = client.post("/plan", json=PLAN_BODY)
@@ -45,7 +44,7 @@ def test_logged_in_plan_writes_profile_and_plan(
 
 
 def test_plan_failure_does_not_write(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     fake_llm.canned_reply = '{"not": "a meal plan"}'
     client.post("/login", json={"username": "demo1", "password": "password1"})
@@ -60,7 +59,7 @@ def test_plan_failure_does_not_write(
 
 
 def test_chat_does_not_write_plan(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     plan_resp = client.post("/plan", json=PLAN_BODY)
@@ -87,7 +86,7 @@ def test_chat_does_not_write_plan(
 
 
 def test_save_plan_writes_after_chat(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     plan_resp = client.post("/plan", json=PLAN_BODY)
@@ -134,7 +133,7 @@ def test_save_plan_unknown_session(client: TestClient) -> None:
 
 
 def test_discard_plan_restores_saved_after_chat(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     plan_resp = client.post("/plan", json=PLAN_BODY)
@@ -192,7 +191,7 @@ def test_discard_plan_unknown_session(client: TestClient) -> None:
 
 
 def test_chat_failure_does_not_overwrite_plan(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     plan_resp = client.post("/plan", json=PLAN_BODY)

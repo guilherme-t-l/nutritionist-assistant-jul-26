@@ -1,22 +1,24 @@
 """Shared pytest fixtures.
 
 A `TestClient` plus a `FakeLLM` that records every call and replies with
-a canned MealPlan JSON. These are reused across test_plan.py and test_chat.py.
+a canned MealPlan JSON. FakeUserStore / FakeSessionStore keep tests offline
+(no Supabase credentials needed).
 """
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-from agent.llm import LLM, Message
-from agent.session import SessionStore
-from agent.users import UserStore
+from agent.llm import Message
+from agent.schemas import MealPlan, UserProfile
+from agent.session import Session
+from agent.users import UserRecord
 from src.app.dependencies import get_llm, get_session_store, get_user_store
 from src.app.main import app
 
@@ -55,6 +57,16 @@ CANNED_PLAN_JSON = """
 }
 """
 
+# Same five demos the real store seeds from DEMO_USER_PASSWORDS — hardcoded
+# here so tests never need that env var.
+_DEMO_PASSWORDS = {
+    "demo1": "password1",
+    "demo2": "password2",
+    "demo3": "password3",
+    "demo4": "password4",
+    "demo5": "password5",
+}
+
 
 @dataclass
 class FakeLLM:
@@ -84,26 +96,84 @@ class FakeLLM:
         return self.canned_reply
 
 
+class FakeUserStore:
+    """In-memory stand-in for UserStore — same methods, no network."""
+
+    def __init__(self) -> None:
+        self._passwords: dict[str, str] = dict(_DEMO_PASSWORDS)
+        self._profiles: dict[str, UserProfile | None] = {
+            u: None for u in _DEMO_PASSWORDS
+        }
+        self._plans: dict[str, MealPlan | None] = {u: None for u in _DEMO_PASSWORDS}
+
+    def verify_credentials(self, username: str, password: str) -> bool:
+        return self._passwords.get(username) == password
+
+    def get_user(self, username: str) -> UserRecord | None:
+        if username not in self._passwords:
+            return None
+        return UserRecord(
+            username=username,
+            profile=self._profiles[username],
+            active_plan=self._plans[username],
+        )
+
+    def save_profile(self, username: str, profile: UserProfile) -> None:
+        self._profiles[username] = profile
+
+    def save_plan(self, username: str, plan: MealPlan) -> None:
+        self._plans[username] = plan
+
+    def save_profile_and_plan(
+        self, username: str, profile: UserProfile, plan: MealPlan
+    ) -> None:
+        self._profiles[username] = profile
+        self._plans[username] = plan
+
+
+class FakeSessionStore:
+    """In-memory stand-in for SessionStore — same methods, including save()."""
+
+    def __init__(self) -> None:
+        self._sessions: dict[str, Session] = {}
+
+    def create(
+        self,
+        profile: UserProfile,
+        current_plan: MealPlan | None = None,
+    ) -> tuple[str, Session]:
+        session_id = uuid.uuid4().hex
+        session = Session(profile=profile, current_plan=current_plan)
+        self._sessions[session_id] = session
+        return session_id, session
+
+    def get(self, session_id: str) -> Session | None:
+        return self._sessions.get(session_id)
+
+    def save(self, session_id: str, session: Session) -> None:
+        self._sessions[session_id] = session
+
+
 @pytest.fixture
 def fake_llm() -> FakeLLM:
     return FakeLLM()
 
 
 @pytest.fixture
-def session_store() -> SessionStore:
+def session_store() -> FakeSessionStore:
     """Fresh in-memory store per test — also injectable so tests can inspect sessions."""
-    return SessionStore()
+    return FakeSessionStore()
 
 
 @pytest.fixture
-def user_store(tmp_path: Path) -> UserStore:
-    """Temp users.db per test — never touch the real project-root file."""
-    return UserStore(tmp_path / "users.db")
+def user_store() -> FakeUserStore:
+    """Fresh fake user store per test — never hits Supabase."""
+    return FakeUserStore()
 
 
 @pytest.fixture
 def client(
-    fake_llm: FakeLLM, session_store: SessionStore, user_store: UserStore
+    fake_llm: FakeLLM, session_store: FakeSessionStore, user_store: FakeUserStore
 ) -> Iterator[TestClient]:
     """TestClient with the LLM, SessionStore, and UserStore overridden.
 

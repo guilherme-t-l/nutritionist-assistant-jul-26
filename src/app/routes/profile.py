@@ -51,5 +51,6 @@ def update_profile(
         session = store.get(body.session_id)
         if session is not None:
             session.profile = profile
+            store.save(body.session_id, session)
 
     return ProfileUpdateResponse(profile=profile)

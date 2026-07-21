@@ -45,10 +45,24 @@ if command -v lsof >/dev/null 2>&1; then
 fi
 
 echo "Installing dependencies..."
+# If this folder was copied from elsewhere, .venv scripts can point at a dead
+# Python path (shebang). Detect that and rebuild so `uvicorn` works again.
+if [ -x .venv/bin/uvicorn ]; then
+  SHEBANG=$(head -1 .venv/bin/uvicorn 2>/dev/null || true)
+  case "$SHEBANG" in
+    *"$(pwd)/.venv"*) ;;
+    *)
+      echo "Virtualenv looks stale (moved project?) — recreating .venv..."
+      rm -rf .venv
+      ;;
+  esac
+fi
 uv sync
 
 echo "Starting the app at http://127.0.0.1:$PORT/"
 echo "Press Ctrl+C to stop."
 echo
 
-uv run uvicorn src.app.main:app --reload --host 127.0.0.1 --port $PORT
+# Prefer the project venv's Python module form — avoids broken console-script
+# shebangs and Conda (base) PATH confusion.
+uv run python -m uvicorn src.app.main:app --reload --host 127.0.0.1 --port $PORT

@@ -1,73 +1,104 @@
-# In-memory conversation store, keyed by session ID.
+# Supabase-backed conversation store, keyed by session ID.
 #
-# Deliberately primitive: one Python dict wrapped in a class. Two consequences
-# we're accepting for Phase 1:
-#   1. A server restart wipes every conversation.
-#   2. It does not scale beyond a single process.
-# Both are fine right now — we're building a learning tool, not a product.
-# When it stops being fine, this file is the only one that changes.
+# Previously an in-memory dict — fine on one long-lived process, useless on
+# Vercel where each request can hit a fresh instance. Now every create/get/save
+# is a round-trip to the `sessions` table.
+#
+# Mental model: mutate the Session object in the route, then call save().
+# Without save(), the next serverless invocation will not see your changes.
 
 from __future__ import annotations
 
+import json
+import os
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+from supabase import Client, create_client
 
 from agent.llm import Message
 from agent.schemas import MealPlan, UserProfile
 
 
-# Everything we need to remember for ONE guest user:
-#   - their profile (hard constraints like allergies, calories)
-#   - the latest meal plan (None until /plan succeeds)
-#   - the running conversation history (every user turn + every model turn).
-# `@dataclass` wires up __init__, __repr__, __eq__ from the declared fields.
 @dataclass
 class Session:
     profile: UserProfile
-    # Set after the first successful /plan (and replaced on each /chat).
-    # Nothing reads this yet — Step 1 only adds the field.
     current_plan: MealPlan | None = None
-    # `field(default_factory=list)` = give each Session its own fresh list.
-    # If we wrote `= []` here, every Session would share the same list —
-    # classic Python foot-gun (mutable default arguments).
+    # `field(default_factory=list)` = each Session gets its own list.
     history: list[Message] = field(default_factory=list)
 
 
-# Thin wrapper around a dict so we can swap it for Redis / SQLite later.
-# A single instance is shared across all requests (see dependencies.py's
-# `@lru_cache` on get_session_store).
-class SessionStore:
-    # Called exactly once, by get_session_store() the first time FastAPI
-    # needs the store. Every subsequent request reuses the same instance.
-    def __init__(self) -> None:
-        # `dict[str, Session]` on the RHS is a type hint for the empty dict —
-        # it tells the type checker "string keys, Session values".
-        self._sessions: dict[str, Session] = {}
+def _require_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(
+            f"Missing {name}. Add it to .env (local) or Vercel env vars (deploy)."
+        )
+    return value
 
-    # Called by POST /plan (and POST /session/resume for returning users).
-    # Generates a fresh 32-char hex session_id, attaches a new Session
-    # carrying the user's profile + optional current_plan + empty history.
-    # Resume passes current_plan from DB; /plan leaves it None until generation.
+
+def _history_to_json(history: list[Message]) -> str:
+    return json.dumps([{"role": m.role, "content": m.content} for m in history])
+
+
+def _history_from_json(raw: str | list | None) -> list[Message]:
+    if raw is None or raw == "":
+        return []
+    data = json.loads(raw) if isinstance(raw, str) else raw
+    return [Message(role=item["role"], content=item["content"]) for item in data]
+
+
+class SessionStore:
+    """Repository for guest/logged-in conversation state in Supabase."""
+
+    def __init__(self, client: Client | None = None) -> None:
+        if client is None:
+            client = create_client(
+                _require_env("SUPABASE_URL"),
+                _require_env("SUPABASE_SERVICE_ROLE_KEY"),
+            )
+        self._client = client
+
     def create(
         self,
         profile: UserProfile,
         current_plan: MealPlan | None = None,
     ) -> tuple[str, Session]:
-        # `.hex` gives the UUID as a 32-char hex string (no dashes) — cleaner
-        # in URLs and headers than the default "ab12-34cd-..." form.
         session_id = uuid.uuid4().hex
         session = Session(profile=profile, current_plan=current_plan)
-        self._sessions[session_id] = session
-        # Returning two values = returning a tuple. The caller unpacks with
-        # `session_id, session = store.create(profile)`.
+        self.save(session_id, session)
         return session_id, session
 
-    # Called by POST /chat on every refinement request to load the
-    # conversation that /plan originally created. Returns None (NOT a
-    # KeyError) when the id is unknown — /chat turns that None into a 404.
-    #
-    # `Session | None` (PEP 604) = "either a Session or None". Same as
-    # `Optional[Session]` but newer syntax — works thanks to the
-    # `from __future__ import annotations` at the top of the file.
     def get(self, session_id: str) -> Session | None:
-        return self._sessions.get(session_id)
+        result = (
+            self._client.table("sessions")
+            .select("profile_json, current_plan_json, history_json")
+            .eq("session_id", session_id)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return None
+        row = result.data[0]
+        profile = UserProfile.model_validate_json(row["profile_json"])
+        current_plan = (
+            MealPlan.model_validate_json(row["current_plan_json"])
+            if row["current_plan_json"]
+            else None
+        )
+        history = _history_from_json(row["history_json"])
+        return Session(profile=profile, current_plan=current_plan, history=history)
+
+    def save(self, session_id: str, session: Session) -> None:
+        """Write the full session row. Routes must call this after mutating."""
+        row = {
+            "session_id": session_id,
+            "profile_json": session.profile.model_dump_json(),
+            "current_plan_json": (
+                session.current_plan.model_dump_json() if session.current_plan else None
+            ),
+            "history_json": _history_to_json(session.history),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._client.table("sessions").upsert(row, on_conflict="session_id").execute()

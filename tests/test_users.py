@@ -1,12 +1,9 @@
-"""Unit tests for UserStore write rules (temp DB path)."""
+"""Unit tests for UserStore write rules (in-memory FakeUserStore)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from agent.schemas import MealPlan, UserProfile
-from agent.users import UserStore
-from tests.conftest import CANNED_PLAN_JSON
+from tests.conftest import CANNED_PLAN_JSON, FakeUserStore
 
 
 def _sample_profile(**overrides: object) -> UserProfile:
@@ -24,16 +21,16 @@ def _sample_plan() -> MealPlan:
     return MealPlan.model_validate_json(CANNED_PLAN_JSON)
 
 
-def test_verify_credentials_seeds_demo_users(tmp_path: Path) -> None:
-    store = UserStore(tmp_path / "users.db")
+def test_verify_credentials_seeds_demo_users() -> None:
+    store = FakeUserStore()
 
     assert store.verify_credentials("demo1", "password1") is True
     assert store.verify_credentials("demo1", "wrong") is False
     assert store.verify_credentials("nobody", "password1") is False
 
 
-def test_get_user_starts_with_null_profile_and_plan(tmp_path: Path) -> None:
-    store = UserStore(tmp_path / "users.db")
+def test_get_user_starts_with_null_profile_and_plan() -> None:
+    store = FakeUserStore()
     user = store.get_user("demo1")
 
     assert user is not None
@@ -42,8 +39,8 @@ def test_get_user_starts_with_null_profile_and_plan(tmp_path: Path) -> None:
     assert user.active_plan is None
 
 
-def test_save_profile_does_not_clear_plan(tmp_path: Path) -> None:
-    store = UserStore(tmp_path / "users.db")
+def test_save_profile_does_not_clear_plan() -> None:
+    store = FakeUserStore()
     profile = _sample_profile()
     plan = _sample_plan()
     store.save_profile_and_plan("demo1", profile, plan)
@@ -59,8 +56,8 @@ def test_save_profile_does_not_clear_plan(tmp_path: Path) -> None:
     assert user.active_plan.model_dump() == plan.model_dump()
 
 
-def test_save_plan_leaves_profile_alone(tmp_path: Path) -> None:
-    store = UserStore(tmp_path / "users.db")
+def test_save_plan_leaves_profile_alone() -> None:
+    store = FakeUserStore()
     profile = _sample_profile()
     plan = _sample_plan()
     store.save_profile_and_plan("demo1", profile, plan)
@@ -76,8 +73,8 @@ def test_save_plan_leaves_profile_alone(tmp_path: Path) -> None:
     assert user.active_plan.notes == "Updated after chat."
 
 
-def test_save_profile_and_plan_round_trip(tmp_path: Path) -> None:
-    store = UserStore(tmp_path / "users.db")
+def test_save_profile_and_plan_round_trip() -> None:
+    store = FakeUserStore()
     profile = _sample_profile()
     plan = _sample_plan()
     store.save_profile_and_plan("demo2", profile, plan)
