@@ -6,8 +6,7 @@ import json
 
 from fastapi.testclient import TestClient
 
-from agent.session import SessionStore
-from tests.conftest import FakeLLM
+from tests.conftest import FakeLLM, FakeSessionStore
 
 
 def test_plan_returns_session_and_valid_meal_plan(
@@ -34,7 +33,7 @@ def test_plan_returns_session_and_valid_meal_plan(
 # After /plan succeeds: current_plan holds the MealPlan object, and history's
 # model turn is a short note (from plan.notes) — not the full JSON reply.
 def test_plan_stores_current_plan_and_short_history_note(
-    client: TestClient, fake_llm: FakeLLM, session_store: SessionStore
+    client: TestClient, fake_llm: FakeLLM, session_store: FakeSessionStore
 ) -> None:
     response = client.post(
         "/plan",

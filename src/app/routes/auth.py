@@ -117,7 +117,7 @@ def resume_session(
     user_store: UserStore = Depends(get_user_store),
     store: SessionStore = Depends(get_session_store),
 ) -> ResumeResponse:
-    """Seed a new in-memory conversation from DB. Read-only on users.db."""
+    """Seed a new conversation session from DB. Read-only on the users table."""
     username = get_optional_username(request)
     if not username:
         raise HTTPException(status_code=401, detail="Not authenticated")

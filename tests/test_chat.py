@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from agent.session import SessionStore
-from tests.conftest import FakeLLM
+from tests.conftest import FakeLLM, FakeSessionStore
 
 
 def test_chat_uses_session_and_forwards_history(
@@ -54,7 +53,7 @@ def test_chat_uses_session_and_forwards_history(
 # After /chat succeeds: current_plan is replaced, and history grows by the
 # new user message + another short assistant note.
 def test_chat_replaces_current_plan_and_appends_short_note(
-    client: TestClient, fake_llm: FakeLLM, session_store: SessionStore
+    client: TestClient, fake_llm: FakeLLM, session_store: FakeSessionStore
 ) -> None:
     # Give Call 2 a different notes string so we can tell the plan was replaced.
     plan_response = client.post(

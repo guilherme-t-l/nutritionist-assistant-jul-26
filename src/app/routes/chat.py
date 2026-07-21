@@ -84,5 +84,7 @@ def chat(
     # Append the new user turn and the new assistant note to the history. History stays cheap: full user text + short assistant note.
     session.history.append(user_turn)
     session.history.append(Message(role="model", content=build_assistant_note(plan)))
+    # Must write back — sessions live in Supabase, not process memory.
+    store.save(request.session_id, session)
 
     return ChatResponse(plan=plan)

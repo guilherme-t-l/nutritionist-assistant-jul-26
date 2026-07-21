@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/main.py": {
+      "maxDuration": 60
+    }
+  }
+}

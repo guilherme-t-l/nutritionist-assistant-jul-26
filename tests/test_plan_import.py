@@ -9,9 +9,7 @@ from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from agent.session import SessionStore
-from agent.users import UserStore
-from tests.conftest import CANNED_PLAN_JSON, FakeLLM
+from tests.conftest import CANNED_PLAN_JSON, FakeLLM, FakeSessionStore, FakeUserStore
 
 
 PROFILE = {
@@ -65,7 +63,7 @@ def _make_empty_pdf() -> bytes:
 
 
 def test_import_json_meal_plan_skips_llm(
-    client: TestClient, fake_llm: FakeLLM, session_store: SessionStore
+    client: TestClient, fake_llm: FakeLLM, session_store: FakeSessionStore
 ) -> None:
     response = client.post(
         "/plan/import",
@@ -112,7 +110,7 @@ def test_import_freeform_as_is_structures_without_profile_targets(
 
 
 def test_import_adapt_uses_profile_and_llm_even_for_json(
-    client: TestClient, fake_llm: FakeLLM, session_store: SessionStore
+    client: TestClient, fake_llm: FakeLLM, session_store: FakeSessionStore
 ) -> None:
     response = client.post(
         "/plan/import",
@@ -161,7 +159,7 @@ def test_import_empty_source_returns_422(client: TestClient, fake_llm: FakeLLM) 
 
 
 def test_import_guest_does_not_write_db(
-    client: TestClient, user_store: UserStore
+    client: TestClient, user_store: FakeUserStore
 ) -> None:
     response = client.post(
         "/plan/import",
@@ -176,7 +174,7 @@ def test_import_guest_does_not_write_db(
 
 
 def test_import_logged_in_writes_profile_and_plan(
-    client: TestClient, user_store: UserStore
+    client: TestClient, user_store: FakeUserStore
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     response = client.post(
@@ -194,7 +192,7 @@ def test_import_logged_in_writes_profile_and_plan(
 
 
 def test_import_failure_does_not_write(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     fake_llm.canned_reply = '{"not": "a meal plan"}'
     client.post("/login", json={"username": "demo1", "password": "password1"})
@@ -252,7 +250,7 @@ def test_import_pdf_with_json_plan_skips_llm(
 
 
 def test_import_empty_pdf_returns_clear_error(
-    client: TestClient, user_store: UserStore, fake_llm: FakeLLM
+    client: TestClient, user_store: FakeUserStore, fake_llm: FakeLLM
 ) -> None:
     client.post("/login", json={"username": "demo1", "password": "password1"})
     pdf_bytes = _make_empty_pdf()

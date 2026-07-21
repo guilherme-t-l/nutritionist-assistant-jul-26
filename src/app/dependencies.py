@@ -29,17 +29,16 @@ def get_llm() -> LLM:
     return _get_real_llm()
 
 
-# Called by FastAPI on every /plan and /chat request. MUST return the SAME
-# SessionStore instance for every call, otherwise sessions created in /plan
-# would be invisible to the next /chat call. @lru_cache(maxsize=1) is the
-# one-liner that makes it a process-wide singleton.
+# SessionStore talks to Supabase over HTTPS; caching the client wrapper still
+# avoids re-reading env + re-constructing the SDK on every request in one
+# warm instance. Persistence itself is in the DB, not in this process.
 @lru_cache(maxsize=1)
 def get_session_store() -> SessionStore:
     return SessionStore()
 
 
-# Same singleton pattern for the durable user store (users.db).
-# Tests override this with a temp-path UserStore via dependency_overrides.
+# Same singleton pattern for the durable user store (Supabase `users` table).
+# Tests override this with FakeUserStore via dependency_overrides.
 @lru_cache(maxsize=1)
 def get_user_store() -> UserStore:
     return UserStore()

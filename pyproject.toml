@@ -15,6 +15,7 @@ dependencies = [
     "jinja2>=3.1.4",           # HTML templating — FastAPI uses it to render onboarding.html
     "pypdf>=6.14.2",            # extract text from uploaded meal-plan PDFs in /plan/import
     "python-multipart>=0.0.32", # required by FastAPI for multipart file uploads
+    "supabase>=2.31.0",         # HTTPS client for Supabase Postgres (serverless-safe)
 ]
 
 [dependency-groups]
@@ -22,6 +23,10 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",           # test runner
 ]
+
+# Vercel auto-detects FastAPI, but our app lives at a non-standard import path.
+[tool.vercel]
+entrypoint = "src.app.main:app"
 
 [tool.pytest.ini_options]
 # Makes `from src.app.main import app` resolvable from tests without installing the package.

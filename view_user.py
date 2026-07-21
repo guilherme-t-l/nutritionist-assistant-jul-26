@@ -1,35 +1,33 @@
 #!/usr/bin/env python3
-"""Pretty-print a user's preferences and meal plan from users.db."""
+"""Pretty-print a user's preferences and meal plan from Supabase."""
 
-import json
-import sqlite3
+from __future__ import annotations
+
 import sys
-from pathlib import Path
 
-DB = Path(__file__).resolve().parent / "users.db"
+from dotenv import load_dotenv
+
+from agent.users import UserStore
+
+load_dotenv()
 
 
 def main() -> None:
     username = sys.argv[1] if len(sys.argv) > 1 else "demo1"
 
-    conn = sqlite3.connect(DB)
-    row = conn.execute(
-        "SELECT username, profile_json, active_plan_json FROM users WHERE username = ?",
-        (username,),
-    ).fetchone()
-    conn.close()
+    store = UserStore()
+    user = store.get_user(username)
 
-    if not row:
+    if user is None:
         print(f"User {username!r} not found.")
         sys.exit(1)
 
-    name, profile_json, plan_json = row
-    profile = json.loads(profile_json) if profile_json else None
-    plan = json.loads(plan_json) if plan_json else None
+    profile = user.profile.model_dump() if user.profile else None
+    plan = user.active_plan.model_dump() if user.active_plan else None
 
     w = 60
     print("=" * w)
-    print(f"  USER: {name}")
+    print(f"  USER: {user.username}")
     print("=" * w)
 
     print("\n── Preferences ──")

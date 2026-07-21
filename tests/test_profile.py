@@ -2,28 +2,20 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent.schemas import MealPlan, UserProfile
-from agent.session import SessionStore
-from agent.users import UserStore
 from src.app.dependencies import get_llm, get_session_store, get_user_store
 from src.app.main import app
-from tests.conftest import CANNED_PLAN_JSON, FakeLLM
-
-
-@pytest.fixture
-def user_store(tmp_path: Path) -> UserStore:
-    return UserStore(tmp_path / "users.db")
+from tests.conftest import CANNED_PLAN_JSON, FakeLLM, FakeSessionStore, FakeUserStore
 
 
 @pytest.fixture
 def auth_client(
-    fake_llm: FakeLLM, session_store: SessionStore, user_store: UserStore
+    fake_llm: FakeLLM, session_store: FakeSessionStore, user_store: FakeUserStore
 ) -> Iterator[TestClient]:
     app.dependency_overrides[get_llm] = lambda: fake_llm
     app.dependency_overrides[get_session_store] = lambda: session_store
@@ -44,7 +36,7 @@ def test_put_profile_requires_auth(auth_client: TestClient) -> None:
 
 
 def test_put_profile_updates_profile_not_plan(
-    auth_client: TestClient, user_store: UserStore, session_store: SessionStore
+    auth_client: TestClient, user_store: FakeUserStore, session_store: FakeSessionStore
 ) -> None:
     profile = UserProfile(goal="lose_weight", calorie_target=1800)
     plan = MealPlan.model_validate_json(CANNED_PLAN_JSON)
@@ -74,7 +66,7 @@ def test_put_profile_updates_profile_not_plan(
     assert user.active_plan is not None
     assert user.active_plan.model_dump() == plan_before
 
-    # In-memory session: new profile, same plan, history untouched.
+    # Session: new profile, same plan, history untouched.
     assert session.profile.calorie_target == 2000
     assert session.current_plan is not None
     assert session.current_plan.model_dump() == plan_before

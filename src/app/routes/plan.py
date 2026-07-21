@@ -111,9 +111,10 @@ def create_plan(
     # History stays cheap: the user task + a short note (not raw_reply JSON with all the meal plan history details).
     session.history.append(first_user_message)
     session.history.append(Message(role="model", content=build_assistant_note(plan)))
+    store.save(session_id, session)
 
     # Logged-in only: persist after a successful plan is ready for the UI.
-    # Guests (no cookie) leave users.db untouched. Failures above never reach here.
+    # Guests (no cookie) leave the users table untouched. Failures above never reach here.
     username = get_optional_username(request)
     if username:
         user_store.save_profile_and_plan(username, profile, plan)
@@ -140,6 +141,7 @@ def _commit_imported_plan(
         user_turn = "Import my existing meal plan as-is."
     session.history.append(Message(role="user", content=user_turn))
     session.history.append(Message(role="model", content=build_assistant_note(plan)))
+    store.save(session_id, session)
 
     username = get_optional_username(request)
     if username:
@@ -281,8 +283,8 @@ class DiscardPlanResponse(BaseModel):
     plan: MealPlan
 
 
-# Restore the in-memory working plan from DB active_plan. Does not write
-# users.db. Clears session history so chat no longer refers to discarded edits.
+# Restore the working plan from DB active_plan. Does not write the users table.
+# Clears session history so chat no longer refers to discarded edits.
 @router.post("/plan/discard", response_model=DiscardPlanResponse)
 def discard_plan(
     body: DiscardPlanRequest,
@@ -310,7 +312,8 @@ def discard_plan(
             detail="Unknown session_id. Call /plan first.",
         )
 
-    # Memory only — must not call any UserStore save method.
+    # Session only — must not call any UserStore save method.
     session.current_plan = user.active_plan
     session.history.clear()
+    store.save(body.session_id, session)
     return DiscardPlanResponse(plan=user.active_plan)
