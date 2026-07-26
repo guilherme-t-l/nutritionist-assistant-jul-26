@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block title %}Review — {{ batch.name }}{% endblock %}
+
+{% block extra_css %}
+.shell { max-width: 1180px; }
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.meta { color: var(--muted); font-size: 0.92rem; margin-top: 0.35rem; }
+.context-chip {
+  background: var(--sage-soft);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.95rem;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  color: var(--ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  line-height: 1.4;
+}
+.context-chip .context-line {
+  margin: 0;
+}
+.review-stage {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.15fr);
+  gap: 1rem;
+  min-height: 520px;
+  margin-bottom: 1rem;
+}
+@media (max-width: 860px) {
+  .review-stage { grid-template-columns: 1fr; min-height: 0; }
+}
+.chat-panel, .plan-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.7rem 1rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+.chat-thread {
+  overflow-y: auto;
+  padding: 1rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--surface);
+  flex: 1;
+  min-height: 280px;
+  max-height: 62vh;
+}
+.bubble {
+  max-width: 88%;
+  padding: 0.7rem 0.95rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--surface);
+  border-bottom-right-radius: 4px;
+}
+.bubble.assistant {
+  align-self: flex-start;
+  background: #f0ebe3;
+  color: var(--ink);
+  border-bottom-left-radius: 4px;
+}
+.bubble.assistant.active-plan {
+  outline: 2px solid var(--sage);
+  outline-offset: 1px;
+}
+.bubble.assistant.clickable { cursor: pointer; }
+.bubble.error {
+  align-self: flex-start;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.plan-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.plan-toolbar-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+.plan-versions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.plan-version {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.plan-version.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: transparent;
+}
+.plan-card {
+  padding: 1.1rem 1.25rem 1.4rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 280px;
+  max-height: 62vh;
+}
+.plan-empty {
+  min-height: 12rem;
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.plan-empty-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin: 0 0 0.4rem;
+}
+.plan-empty-copy { margin: 0; font-size: 0.95rem; }
+.meal-block { padding: 1rem 0 1.15rem; }
+.meal-block + .meal-block { border-top: 1px solid var(--line); }
+.meal-head { margin-bottom: 0.35rem; }
+.meal-course {
+  margin: 0 0 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+.meal-name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+.meal-accent {
+  display: block;
+  width: 2.25rem;
+  height: 2px;
+  margin-top: 0.45rem;
+  background: var(--sage);
+  border-radius: 999px;
+}
+.meal-desc {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+.food-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.food-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  align-items: start;
+  font-size: 0.92rem;
+}
+.food-main { display: flex; flex-direction: column; gap: 0.12rem; min-width: 0; }
+.food-name-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.5rem; }
+.food-name { color: var(--ink); font-weight: 500; }
+.food-qty { color: var(--muted); font-variant-numeric: tabular-nums; }
+.food-macros {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.food-meta {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+.meal-total {
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.meal-total strong { color: var(--ink); font-weight: 600; }
+.day-total {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
+  align-items: baseline;
+}
+.day-total .label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.05rem;
+}
+.day-total .macros { color: var(--muted); }
+.day-total .macros strong { color: var(--ink); font-size: 1.1rem; font-weight: 600; }
+.target-row {
+  margin-top: 0.55rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.delta.ok { color: var(--sage); font-weight: 600; }
+.delta.off { color: var(--danger); font-weight: 600; }
+.plan-notes {
+  margin-top: 1.1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.rating-bar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+.rating-bar textarea {
+  width: 100%;
+  min-height: 3.2rem;
+  margin: 0.5rem 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  resize: vertical;
+  background: var(--surface-raised);
+}
+.rating-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.current-verdict { text-align: center; margin-bottom: 0.75rem; font-size: 0.9rem; }
+.current-verdict.pass { color: var(--ok); font-weight: 600; }
+.current-verdict.fail { color: var(--danger); font-weight: 600; }
+.judge-panel {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  background: var(--warn-soft);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+.judge-panel.hidden { display: none; }
+.hint { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 0.75rem; }
+.status-flash {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-height: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+.raw-toggle { margin-top: 0.75rem; text-align: center; }
+.raw-json {
+  display: none;
+  margin-top: 0.75rem;
+  max-height: 220px;
+  overflow: auto;
+  background: #f0ebe3;
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.raw-json.open { display: block; }
+{% endblock %}
+
+{% block content %}
+<div class="review-header">
+  <div>
+    <h1>{{ batch.name }}</h1>
+    <div class="meta">
+      Conversation {{ index + 1 }} of {{ total }}
+      · Category: <strong>{{ conversation.category }}</strong>
+      · Starter: <code>{{ conversation.starter_id }}</code>
+    </div>
+  </div>
+  <a class="btn btn-ghost" href="/">← Batches</a>
+</div>
+
+<div class="context-chip">
+  {% for line in context_lines %}
+  <p class="context-line">{{ line }}</p>
+  {% endfor %}
+</div>
+
+<div class="review-stage" id="review-stage">
+  <section class="chat-panel">
+    <div class="panel-label">Chat</div>
+    <div class="chat-thread" id="chat-thread"></div>
+  </section>
+  <section class="plan-panel">
+    <div class="panel-label">Meal plan</div>
+    <div class="plan-toolbar">
+      <div class="plan-toolbar-title" id="plan-toolbar-title">Today's menu</div>
+      <div class="plan-versions" id="plan-versions"></div>
+    </div>
+    <div class="plan-card" id="plan-card"></div>
+  </section>
+</div>
+
+<div class="rating-bar">
+  {% if human_verdict %}
+  <div class="current-verdict {{ human_verdict.verdict }}">
+    Your verdict: {{ human_verdict.verdict|upper }}
+    {% if human_verdict.reasoning %} — {{ human_verdict.reasoning }}{% endif %}
+    <span class="muted">(re-rate anytime)</span>
+  </div>
+  {% endif %}
+
+  <div class="status-flash" id="status-flash"></div>
+
+  <label class="muted" for="note">Note (optional)</label>
+  <textarea id="note" placeholder="Why pass or fail?">{{ human_verdict.reasoning if human_verdict and human_verdict.reasoning else "" }}</textarea>
+
+  <div class="rating-actions">
+    <button type="button" class="btn btn-pass" id="btn-pass">✓ Pass <span class="kbd">P</span></button>
+    <button type="button" class="btn btn-fail" id="btn-fail">✗ Fail <span class="kbd">F</span></button>
+  </div>
+
+  <div class="nav-row">
+    {% if prev_index is not none %}
+    <a class="btn btn-ghost" href="/batches/{{ batch.batch_id }}/review?i={{ prev_index }}">◀ Prev</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+
+    {% if next_index is not none %}
+    <a class="btn btn-ghost" href="/batches/{{ batch.batch_id }}/review?i={{ next_index }}">Next ▶</a>
+    {% else %}
+    <a class="btn btn-secondary" href="/">Done — back to batches</a>
+    {% endif %}
+  </div>
+
+  <p class="hint">Keyboard: <span class="kbd">P</span> pass · <span class="kbd">F</span> fail · auto-advances · click an assistant message to show that plan version</p>
+
+  {% if judge_verdict %}
+  <div style="margin-top: 1rem; text-align: center;">
+    <button type="button" class="btn btn-ghost" id="toggle-judge">Show judge verdict</button>
+  </div>
+  <div class="judge-panel hidden" id="judge-panel">
+    <strong>Judge:</strong> {{ judge_verdict.verdict|upper }}
+    {% if judge_verdict.reasoning %}<div>{{ judge_verdict.reasoning }}</div>{% endif %}
+    <div class="muted" style="margin-top: 0.35rem;">
+      prompt {{ judge_verdict.judge_prompt_version or "—" }}
+      · {{ judge_verdict.judge_model or "—" }}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="raw-toggle">
+    <button type="button" class="btn btn-ghost" id="toggle-raw">Show raw transcript</button>
+  </div>
+  <pre class="raw-json" id="raw-json"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="review-data" type="application/json">{{ {
+  "transcript": transcript,
+  "context": context,
+  "conversation_id": conversation.conversation_id,
+  "next_url": next_url
+}|tojson }}</script>
+<script src="/static/review.js"></script>
+{% endblock %}

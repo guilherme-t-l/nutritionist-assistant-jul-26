@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Batches — Eval Framework{% endblock %}
+
+{% block extra_css %}
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+  position: relative;
+}
+.dropdown { position: relative; }
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  min-width: 16rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 0.5rem;
+  z-index: 10;
+}
+.dropdown.open .dropdown-menu { display: block; }
+.dropdown-menu label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.35rem 0.35rem 0.2rem;
+}
+.dropdown-menu select {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-body);
+  background: var(--surface);
+}
+.dropdown-menu .menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+.dropdown-menu .menu-actions button { width: 100%; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  text-align: left;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+td.name { font-weight: 600; }
+td.name .file { display: block; font-weight: 400; font-size: 0.8rem; color: var(--muted); }
+.row-link { color: inherit; }
+.row-link:hover { text-decoration: none; }
+.progress-text { font-size: 0.85rem; color: var(--warn); }
+.empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+}
+{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <div class="dropdown" id="new-batch-dropdown">
+    <button type="button" class="btn btn-primary" id="new-batch-btn">New batch ▾</button>
+    <div class="dropdown-menu">
+      <label for="starter-file">Starter file</label>
+      <select id="starter-file">
+        {% for f in starter_files %}
+        <option value="{{ f }}">{{ f }}</option>
+        {% endfor %}
+      </select>
+      <div class="menu-actions">
+        <button type="button" class="btn btn-primary" data-mode="manual">Manual eval</button>
+        <button type="button" class="btn btn-secondary" data-mode="judge" title="Generate batch, then auto-rate with the LLM judge">Judge eval</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  {% if rows %}
+  <table>
+    <thead>
+      <tr>
+        <th>Batch</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Convs</th>
+        <th>Human</th>
+        <th>Judge</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="batch-rows">
+      {% for row in rows %}
+      <tr data-batch-id="{{ row.batch.batch_id }}" data-status="{{ row.batch.status }}">
+        <td class="name">
+          {{ row.batch.name }}
+          <span class="file">{{ row.batch.starter_file }}</span>
+        </td>
+        <td class="muted">{{ row.batch.created_at[:10] }}</td>
+        <td>
+          <span class="badge badge-{{ row.batch.status }}">{{ row.batch.status }}</span>
+          {% if row.batch.status == 'generating' %}
+          <div class="progress-text" data-progress>{{ row.total }} so far…</div>
+          {% endif %}
+        </td>
+        <td data-total>{{ row.total }}</td>
+        <td data-human>
+          {% if row.total %}{{ row.human_rated }}/{{ row.total }}{% else %}—{% endif %}
+        </td>
+        <td data-judge>
+          {% if row.judge_rated %}{{ row.judge_rated }}/{{ row.total }}{% else %}—{% endif %}
+        </td>
+        <td>
+          {% if row.batch.status == 'ready' %}
+          <div style="display:flex; flex-direction:column; gap:0.35rem; align-items:flex-end;">
+            <a class="btn btn-ghost" href="/batches/{{ row.batch.batch_id }}/review">Review →</a>
+            {% if row.can_align %}
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-align="{{ row.batch.batch_id }}"
+              title="Judge rates the same conversations you already rated (blind)"
+            >Run alignment check</button>
+            {% elif row.human_rated == row.total and row.judge_rated > 0 and row.judge_rated < row.total %}
+            <span class="muted progress-text" data-judging>Judging… {{ row.judge_rated }}/{{ row.total }}</span>
+            {% endif %}
+          </div>
+          {% elif row.batch.status == 'generating' %}
+          <span class="muted">Generating…</span>
+          {% else %}
+          <span class="muted">Failed</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    No batches yet. Click <strong>New batch</strong> and pick a starter file
+    (the host app on :8000 must be running).
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const dropdown = document.getElementById("new-batch-dropdown");
+  const btn = document.getElementById("new-batch-btn");
+  const starterSelect = document.getElementById("starter-file");
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle("open");
+  });
+  document.addEventListener("click", () => dropdown.classList.remove("open"));
+
+  dropdown.querySelectorAll("[data-mode]").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const mode = el.getAttribute("data-mode");
+      const starter_file = starterSelect.value;
+      if (!starter_file) {
+        alert("Add a starter JSON file under eval_framework/starters/ first.");
+        return;
+      }
+      el.disabled = true;
+      btn.disabled = true;
+      try {
+        const res = await fetch("/batches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ starter_file, mode }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || res.statusText);
+        }
+        window.location.reload();
+      } catch (err) {
+        alert("Could not start batch: " + err.message);
+        el.disabled = false;
+        btn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-align]").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const id = el.getAttribute("data-align");
+      el.disabled = true;
+      el.textContent = "Starting…";
+      try {
+        const res = await fetch("/batches/" + id + "/judge", { method: "POST" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || res.statusText);
+        }
+        window.location.reload();
+      } catch (err) {
+        alert("Could not start alignment check: " + err.message);
+        el.disabled = false;
+        el.textContent = "Run alignment check";
+      }
+    });
+  });
+
+  // Poll generating batches, and batches mid-judge, every 2s.
+  async function pollActive() {
+    const generating = document.querySelectorAll("tr[data-status='generating']");
+    const judging = document.querySelectorAll("[data-judging], [data-align]");
+    // Also poll rows where human is complete but judge is partial (after reload mid-judge).
+    const rows = document.querySelectorAll("tr[data-batch-id]");
+    let needPoll = generating.length > 0;
+
+    for (const row of rows) {
+      const id = row.getAttribute("data-batch-id");
+      const humanCell = row.querySelector("[data-human]");
+      const judgeCell = row.querySelector("[data-judge]");
+      // Heuristic: if judge cell shows a partial fraction, keep polling.
+      if (judgeCell && judgeCell.textContent.includes("/") && !judgeCell.textContent.startsWith("—")) {
+        const [a, b] = judgeCell.textContent.split("/").map((x) => parseInt(x, 10));
+        if (!Number.isNaN(a) && !Number.isNaN(b) && a < b) needPoll = true;
+      }
+      if (row.getAttribute("data-status") !== "generating" && !needPoll) continue;
+      try {
+        const res = await fetch("/api/batches/" + id);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const totalEl = row.querySelector("[data-total]");
+        const progressEl = row.querySelector("[data-progress]");
+        if (totalEl) totalEl.textContent = data.total;
+        if (progressEl) progressEl.textContent = data.total + " so far…";
+        if (humanCell && data.total) {
+          humanCell.textContent = data.human_rated + "/" + data.total;
+        }
+        if (judgeCell) {
+          judgeCell.textContent = data.judge_rated
+            ? data.judge_rated + "/" + data.total
+            : "—";
+        }
+        if (data.status !== "generating" && row.getAttribute("data-status") === "generating") {
+          window.location.reload();
+          return;
+        }
+        // Reload when judge catches up after an alignment check.
+        if (
+          data.judge_rated > 0 &&
+          data.judge_rated === data.total &&
+          row.querySelector("[data-judging], [data-align]")
+        ) {
+          window.location.reload();
+          return;
+        }
+      } catch (_) { /* ignore transient errors */ }
+    }
+
+    // Always keep a light poll if any generating row exists.
+    if (generating.length || needPoll) {
+      setTimeout(pollActive, 2000);
+    }
+  }
+  pollActive();
+})();
+</script>
+{% endblock %}
