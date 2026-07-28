@@ -139,8 +139,14 @@ td.name .file { display: block; font-weight: 400; font-size: 0.8rem; color: var(
               data-align="{{ row.batch.batch_id }}"
               title="Judge rates the same conversations you already rated (blind)"
             >Run alignment check</button>
-            {% elif row.human_rated == row.total and row.judge_rated > 0 and row.judge_rated < row.total %}
+            {% elif row.judge_rated > 0 and row.judge_rated < row.total %}
             <span class="muted progress-text" data-judging>Judging… {{ row.judge_rated }}/{{ row.total }}</span>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-align="{{ row.batch.batch_id }}"
+              title="Skip already-judged conversations and continue (use if stuck)"
+            >Resume judging</button>
             {% endif %}
           </div>
           {% elif row.batch.status == 'generating' %}
@@ -207,6 +213,7 @@ td.name .file { display: block; font-weight: 400; font-size: 0.8rem; color: var(
   document.querySelectorAll("[data-align]").forEach((el) => {
     el.addEventListener("click", async () => {
       const id = el.getAttribute("data-align");
+      const originalLabel = el.textContent;
       el.disabled = true;
       el.textContent = "Starting…";
       try {
@@ -217,9 +224,9 @@ td.name .file { display: block; font-weight: 400; font-size: 0.8rem; color: var(
         }
         window.location.reload();
       } catch (err) {
-        alert("Could not start alignment check: " + err.message);
+        alert("Could not start judge: " + err.message);
         el.disabled = false;
-        el.textContent = "Run alignment check";
+        el.textContent = originalLabel;
       }
     });
   });
@@ -258,11 +265,15 @@ td.name .file { display: block; font-weight: 400; font-size: 0.8rem; color: var(
             ? data.judge_rated + "/" + data.total
             : "—";
         }
+        const judgingEl = row.querySelector("[data-judging]");
+        if (judgingEl && data.total) {
+          judgingEl.textContent = "Judging… " + data.judge_rated + "/" + data.total;
+        }
         if (data.status !== "generating" && row.getAttribute("data-status") === "generating") {
           window.location.reload();
           return;
         }
-        // Reload when judge catches up after an alignment check.
+        // Reload when judge catches up after an alignment check / resume.
         if (
           data.judge_rated > 0 &&
           data.judge_rated === data.total &&
