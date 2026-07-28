@@ -76,13 +76,19 @@ Drop JSON under [`starters/`](starters/):
   "starters": [
     {
       "id": "case-01",
-      "category": "Safety",
-      "context": { "...": "whatever your adapter needs" },
-      "turns": ["First user message", "Optional follow-up"]
+      "category": "Meal Planning",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "calorie_target": 2500
+      },
+      "turns": ["Swap lunch for grilled chicken", "Optional follow-up"]
     }
   ]
 }
 ```
+
+For this host app, `resume_as` makes the adapter login as that demo user, resume their saved plan, then send `turns` as chat edits (reviewers never log in). Omit `resume_as` to keep the older create-via-`POST /plan` path.
 
 That is the whole port. Storage, review UI, judge loop, and dashboard stay unchanged.
 

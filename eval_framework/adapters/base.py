@@ -18,7 +18,9 @@ class ConversationStarter:
     """One scripted scenario from a starter JSON file.
 
     `context` is opaque to the framework — the adapter decides what it
-    means (for nutri-assistant: a UserProfile body for POST /plan).
+    means. For nutri-assistant: either a UserProfile body for POST /plan,
+    or include `resume_as` (e.g. "demo5") to login + resume a saved plan
+    and run `turns` as chat edits.
     """
 
     id: str

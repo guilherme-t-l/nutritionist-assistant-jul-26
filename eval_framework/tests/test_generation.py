@@ -81,10 +81,11 @@ def tiny_starter_file(tmp_path: Path) -> Path:
 class TestLoadStarterFile:
     def test_loads_example_starters(self) -> None:
         loaded = load_starter_file(STARTERS_DIR / "example.json")
-        assert loaded.name == "starter-smoke-test"
+        assert loaded.name == "demo5-edit-smoke-test"
         assert len(loaded.starters) == 10
-        assert loaded.starters[0].id == "allergy-peanut-01"
-        assert loaded.starters[0].turns[1] == "Add a pad thai dinner"
+        assert loaded.starters[0].id == "adapt-chocolate-lunch"
+        assert loaded.starters[0].context["resume_as"] == "demo5"
+        assert "beer" in loaded.starters[8].turns[1].lower()
 
     def test_rejects_missing_turns(self, tmp_path: Path) -> None:
         path = tmp_path / "bad.json"
@@ -187,6 +188,7 @@ class TestNutriHttpAgent:
         result = agent.run_conversation(starter)
 
         assert result.agent_meta["session_id"] == "sess-1"
+        assert result.agent_meta["mode"] == "plan"
         assert result.agent_meta["errors"] == []
         assert len(result.transcript) == 4
         assert result.transcript[0] == {
@@ -195,6 +197,79 @@ class TestNutriHttpAgent:
         }
         assert json.loads(result.transcript[1]["content"])["notes"] == "v1"
         assert json.loads(result.transcript[3]["content"])["notes"] == "v2"
+
+    def test_resume_then_chat(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """resume_as → login + resume + chat; no /plan call."""
+        monkeypatch.setenv(
+            "DEMO_USER_PASSWORDS",
+            json.dumps({"demo5": "password5"}),
+        )
+        baseline = {
+            "meals": [{"name": "Almoço"}],
+            "notes": "baseline",
+            "total_calories": 2500,
+        }
+        edited = {
+            "meals": [{"name": "Almoço com frango"}],
+            "notes": "edited",
+            "total_calories": 2480,
+        }
+        paths: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            paths.append(request.url.path)
+            if request.url.path == "/login":
+                body = json.loads(request.content)
+                assert body == {"username": "demo5", "password": "password5"}
+                return httpx.Response(
+                    200,
+                    json={"username": "demo5", "has_plan": True},
+                    headers=[("set-cookie", "nutri_user=demo5; Path=/")],
+                )
+            if request.url.path == "/session/resume":
+                return httpx.Response(
+                    200,
+                    json={
+                        "session_id": "sess-resume",
+                        "profile": {"goal": "maintain", "calorie_target": 2500},
+                        "plan": baseline,
+                    },
+                )
+            if request.url.path == "/chat":
+                body = json.loads(request.content)
+                assert body == {
+                    "session_id": "sess-resume",
+                    "message": "Swap Almoço carne for chicken",
+                }
+                return httpx.Response(200, json={"plan": edited})
+            if request.url.path == "/plan":
+                return httpx.Response(500, json={"detail": "should not call /plan"})
+            return httpx.Response(404, json={"detail": "missing"})
+
+        client = httpx.Client(
+            transport=httpx.MockTransport(handler), base_url="http://test"
+        )
+        agent = NutriHttpAgent(client=client)
+        starter = ConversationStarter(
+            id="edit-01",
+            category="Meal Planning",
+            context={"resume_as": "demo5", "goal": "maintain", "calorie_target": 2500},
+            turns=["Swap Almoço carne for chicken"],
+        )
+        result = agent.run_conversation(starter)
+
+        assert "/plan" not in paths
+        assert paths == ["/login", "/session/resume", "/chat"]
+        assert result.agent_meta["mode"] == "resume"
+        assert result.agent_meta["session_id"] == "sess-resume"
+        assert result.agent_meta["resume_as"] == "demo5"
+        assert result.agent_meta["errors"] == []
+        # Baseline seed + one edit turn → 4 transcript entries.
+        assert len(result.transcript) == 4
+        assert result.transcript[0]["content"] == "(existing meal plan loaded)"
+        assert json.loads(result.transcript[1]["content"])["notes"] == "baseline"
+        assert result.transcript[2]["content"] == "Swap Almoço carne for chicken"
+        assert json.loads(result.transcript[3]["content"])["notes"] == "edited"
 
     def test_plan_error_is_captured_not_raised(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:

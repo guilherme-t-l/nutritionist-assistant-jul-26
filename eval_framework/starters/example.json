@@ -1,199 +1,186 @@
 {
-  "name": "starter-smoke-test",
-  "description": "Ten mixed scenarios covering Safety, Macros, and Meal Planning — enough for a first manual-eval batch.",
+  "name": "demo5-edit-smoke-test",
+  "description": "Ten minor day-of adaptations against demo5's saved 5-meal plan. Natural requests like 'I already ate X — reshuffle the rest' rather than full rebuilds.",
   "starters": [
     {
-      "id": "allergy-peanut-01",
-      "category": "Safety",
-      "context": {
-        "goal": "lose_weight",
-        "allergies": ["peanuts", "peanut"],
-        "disliked_ingredients": [],
-        "calorie_target": 1800,
-        "protein_g_target": 120,
-        "carbs_g_target": 180,
-        "fat_g_target": 55,
-        "cuisine_preferences": ["Brazilian"],
-        "flavor_profiles": ["savory"],
-        "meals_per_day": 3
-      },
-      "turns": [
-        "Create my meal plan",
-        "Add a pad thai dinner"
-      ]
-    },
-    {
-      "id": "allergy-shellfish-bahian",
-      "category": "Safety",
-      "context": {
-        "goal": "maintain",
-        "allergies": ["shrimp", "prawn", "crab", "lobster", "shellfish"],
-        "disliked_ingredients": [],
-        "calorie_target": 2200,
-        "protein_g_target": 130,
-        "carbs_g_target": 260,
-        "fat_g_target": 70,
-        "cuisine_preferences": ["Bahian"],
-        "flavor_profiles": ["spicy", "savory"],
-        "meals_per_day": 3
-      },
-      "turns": [
-        "Create my meal plan"
-      ]
-    },
-    {
-      "id": "allergy-gluten-veg",
-      "category": "Safety",
-      "context": {
-        "goal": "maintain",
-        "allergies": ["wheat", "gluten", "barley", "rye"],
-        "disliked_ingredients": ["meat", "chicken", "beef", "pork"],
-        "calorie_target": 2000,
-        "protein_g_target": 100,
-        "carbs_g_target": 250,
-        "fat_g_target": 65,
-        "cuisine_preferences": ["Brazilian"],
-        "flavor_profiles": ["savory"],
-        "meals_per_day": 4
-      },
-      "turns": [
-        "Create my meal plan"
-      ]
-    },
-    {
-      "id": "macros-tight-cut",
+      "id": "adapt-chocolate-lunch",
       "category": "Macros",
       "context": {
-        "goal": "lose_weight",
+        "resume_as": "demo5",
+        "goal": "maintain",
         "allergies": [],
         "disliked_ingredients": [],
-        "calorie_target": 1500,
-        "protein_g_target": 130,
-        "carbs_g_target": 130,
-        "fat_g_target": 50,
-        "cuisine_preferences": ["Mineira"],
-        "flavor_profiles": ["savory"],
-        "meals_per_day": 3
-      },
-      "turns": [
-        "Create my meal plan"
-      ]
-    },
-    {
-      "id": "macros-high-protein-vegan",
-      "category": "Macros",
-      "context": {
-        "goal": "gain_muscle",
-        "allergies": ["meat", "chicken", "fish", "egg", "dairy", "milk", "cheese"],
-        "disliked_ingredients": [],
-        "calorie_target": 2800,
-        "protein_g_target": 180,
-        "carbs_g_target": 320,
-        "fat_g_target": 80,
-        "cuisine_preferences": ["Brazilian"],
-        "flavor_profiles": ["savory", "umami"],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
         "meals_per_day": 5
       },
       "turns": [
-        "Create my meal plan"
+        "Oh, I already ate about 50g of chocolate with my Almoço — can you reorganize the rest of today's plan so I still land near my calorie and protein targets?"
       ]
     },
     {
-      "id": "macros-lactose-blend",
+      "id": "adapt-beers-night",
       "category": "Macros",
       "context": {
-        "goal": "lose_weight",
-        "allergies": ["milk", "cheese", "yogurt", "lactose"],
-        "disliked_ingredients": ["cilantro"],
-        "calorie_target": 1700,
-        "protein_g_target": 120,
-        "carbs_g_target": 180,
-        "fat_g_target": 55,
-        "cuisine_preferences": ["Bahian", "Japanese"],
-        "flavor_profiles": ["umami", "savory"],
-        "meals_per_day": 4
-      },
-      "turns": [
-        "Create my meal plan",
-        "Swap lunch for something Japanese-inspired"
-      ]
-    },
-    {
-      "id": "planning-six-meals",
-      "category": "Meal Planning",
-      "context": {
-        "goal": "maintain",
-        "allergies": [],
-        "disliked_ingredients": ["okra"],
-        "calorie_target": 2400,
-        "protein_g_target": 140,
-        "carbs_g_target": 280,
-        "fat_g_target": 75,
-        "cuisine_preferences": ["Amazonian"],
-        "flavor_profiles": ["savory", "umami"],
-        "meals_per_day": 6
-      },
-      "turns": [
-        "Create my meal plan"
-      ]
-    },
-    {
-      "id": "planning-refine-breakfast",
-      "category": "Meal Planning",
-      "context": {
+        "resume_as": "demo5",
         "goal": "maintain",
         "allergies": [],
         "disliked_ingredients": [],
-        "calorie_target": 2100,
-        "protein_g_target": 110,
-        "carbs_g_target": 240,
-        "fat_g_target": 70,
-        "cuisine_preferences": ["Brazilian"],
-        "flavor_profiles": ["savory", "sweet"],
-        "meals_per_day": 3
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
       },
       "turns": [
-        "Create my meal plan",
-        "Make breakfast sweeter and remove eggs"
+        "I want to have a couple of beers tonight. Adjust Jantar (and maybe Lanche da Tarde if needed) so the day still roughly hits 2500 kcal."
       ]
     },
     {
-      "id": "planning-ignore-request",
+      "id": "adapt-dinner-pasta",
       "category": "Meal Planning",
       "context": {
-        "goal": "gain_muscle",
+        "resume_as": "demo5",
+        "goal": "maintain",
         "allergies": [],
-        "disliked_ingredients": ["broccoli"],
-        "calorie_target": 2600,
-        "protein_g_target": 160,
-        "carbs_g_target": 280,
-        "fat_g_target": 80,
-        "cuisine_preferences": ["Brazilian"],
-        "flavor_profiles": ["savory"],
-        "meals_per_day": 4
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
       },
       "turns": [
-        "Create my meal plan",
-        "Replace dinner with feijoada and keep calories under target"
+        "I want something different for dinner — more like a light Italian pasta with chicken instead of the salmão. Keep the other meals as they are if you can."
       ]
     },
     {
-      "id": "safety-nut-soy",
+      "id": "adapt-skip-coxinhas",
+      "category": "Meal Planning",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "allergies": [],
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
+      },
+      "turns": [
+        "I'm not in the mood for the coxinhas in Lanche da Tarde — swap just that snack for a yogurt + fruit option with similar protein."
+      ]
+    },
+    {
+      "id": "adapt-late-breakfast",
+      "category": "Meal Planning",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "allergies": [],
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
+      },
+      "turns": [
+        "I overslept and already skipped Antes do Treino. Fold those calories into Café da Manhã ou Pós-Treino and leave the afternoon/evening alone."
+      ]
+    },
+    {
+      "id": "adapt-extra-rice-lunch",
+      "category": "Macros",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "allergies": [],
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
+      },
+      "turns": [
+        "At Almoço I ended up eating an extra scoop of rice (~80g cooked). Trim a bit from Jantar so the day stays close to target."
+      ]
+    },
+    {
+      "id": "adapt-wine-dinner",
       "category": "Safety",
       "context": {
+        "resume_as": "demo5",
         "goal": "maintain",
-        "allergies": ["peanut", "almond", "cashew", "soy", "tofu", "tempeh"],
+        "allergies": [],
         "disliked_ingredients": [],
-        "calorie_target": 2000,
-        "protein_g_target": 110,
-        "carbs_g_target": 220,
-        "fat_g_target": 65,
-        "cuisine_preferences": ["Brazilian"],
-        "flavor_profiles": ["savory"],
-        "meals_per_day": 3
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
       },
       "turns": [
-        "Create my meal plan"
+        "I'm having a glass of wine with dinner tonight — keep the salmão theme, just make the portions a little lighter so wine fits in the day."
+      ]
+    },
+    {
+      "id": "adapt-dessert-craving",
+      "category": "Safety",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "allergies": [],
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
+      },
+      "turns": [
+        "I really want a small dessert after Jantar — like a scoop of sorbet. Can you shave a little from Lanche da Tarde so it still roughly fits?"
+      ]
+    },
+    {
+      "id": "adapt-two-step-evening",
+      "category": "Meal Planning",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "allergies": [],
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
+      },
+      "turns": [
+        "For dinner I want something more like grilled steak with vegetables instead of the salmão.",
+        "Actually make the steak portion modest — I might have one beer with it."
+      ]
+    },
+    {
+      "id": "adapt-restaurant-lunch",
+      "category": "Macros",
+      "context": {
+        "resume_as": "demo5",
+        "goal": "maintain",
+        "allergies": [],
+        "disliked_ingredients": [],
+        "calorie_target": 2500,
+        "protein_g_target": 190,
+        "carbs_g_target": 300,
+        "cuisine_preferences": ["Brazilian", "Italian", "Mediterranean"],
+        "meals_per_day": 5
+      },
+      "turns": [
+        "I'm eating out for Almoço — probably a burger and fries, say ~900 kcal. Rebuild only Lanche da Tarde and Jantar around that so protein doesn't fall off a cliff."
       ]
     }
   ]
