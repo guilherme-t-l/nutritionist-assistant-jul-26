@@ -35,7 +35,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from agent.llm import LLM, GeminiLLM, Message
-from agent.prompts import build_initial_user_message, build_system_prompt
+from agent.prompts import build_create_system_prompt, build_initial_user_message
 from agent.schemas import MealPlan, UserProfile
 from agent.tracing import Trace, init_db, record_trace
 from evals.metrics import MetricResult, allergen_leak, cuisine_relevance, json_valid, target_accuracy
@@ -99,7 +99,7 @@ def _run_one(
 ) -> RowResult:
     """Run one profile through the agent and score the reply on all metrics."""
     # Same layout as POST /plan: persona + profile in system, short task as user.
-    system_prompt = build_system_prompt(profile)
+    system_prompt = build_create_system_prompt(profile)
     user_message = Message(role="user", content=build_initial_user_message())
 
     raw_reply = ""
@@ -198,7 +198,7 @@ def _persist_trace(row: RowResult, profile: UserProfile) -> None:
         Trace(
             profile_label=row.label,
             kind="plan",
-            system_prompt=build_system_prompt(profile),
+            system_prompt=build_create_system_prompt(profile),
             user_messages=[
                 {"role": "user", "content": build_initial_user_message()}
             ],

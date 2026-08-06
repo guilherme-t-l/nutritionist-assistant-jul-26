@@ -1,108 +1,164 @@
-# Prompt building. Pure functions, no I/O.
+# Prompt building. Pure functions, no I/O — string in, string out.
 #
-# Keeping prompts in their own file means we can:
-#   1. Unit-test them without hitting the LLM.
-#   2. Tweak wording in one place and immediately run evals on the diff
-#      (Phase 4 will depend on this).
+# Why this file exists:
+#   1. Unit-test prompt wording without calling the LLM.
+#   2. Change create or edit instructions in one place, then run evals.
+#
+# How a system prompt is assembled (the important mental model):
+#
+#   SHARED context          +   MODE-SPECIFIC job text   (+ plan JSON for edit)
+#   (_build_shared_context)     (create OR edit)            (edit only)
+#
+#   • /plan  → build_create_system_prompt(profile)
+#   • /chat  → build_edit_system_prompt(profile, plan)
+#   • import adapt → create prompt + a suffix in plan_import.py
+#
+# Shared = who the agent is + this user's hard constraints (calories, allergies…).
+# Create/edit = what the agent should DO with those facts (invent vs revise).
 
 from __future__ import annotations
 
 from agent.schemas import MealPlan, UserProfile
 
 
-# Leading underscore = "module-private" by convention. Other files shouldn't
-# import `_GOAL_PHRASING` directly — it's an implementation detail of this file.
+# ---------------------------------------------------------------------------
+# Constants — fixed strings reused by the builders below
+# ---------------------------------------------------------------------------
+
+# Maps the profile's goal enum → a short phrase after "The user goal is to …".
+# Leading underscore = "module-private": other files shouldn't import this.
 _GOAL_PHRASING = {
-    "lose_weight": "is trying to lose weight gradually and sustainably",
-    "maintain": "wants to maintain their current weight",
-    "gain_muscle": "is trying to gain muscle mass",
+    "lose_weight": "lose weight gradually and sustainably",
+    "maintain": "maintain their current weight",
+    "gain_muscle": "gain muscle mass",
 }
 
+# First user turn for /plan. Profile details live in the system prompt;
+# this message is only the task ("please generate…").
 _INITIAL_USER_MESSAGE = "Generate my meal plan based on my goals and preferences."
 
+# Prefix glued in front of pasted/PDF text for /plan/import (as_is mode):
+# "structure what they gave you" — do not rewrite for preferences.
 _IMPORT_USER_MESSAGE_PREFIX = (
     "Convert the following meal plan into the required MealPlan JSON schema. "
     "Keep the user's meals and ingredients as close as possible — do not "
     "rewrite them to match preferences:\n\n"
 )
 
+# Same idea for import adapt mode: start from their plan, fit preferences.
 _IMPORT_ADAPT_USER_MESSAGE_PREFIX = (
     "Here is my existing meal plan. Edit it to match my preferences "
     "(targets, allergies, dislikes, cuisines, meals per day). Keep what "
     "already fits; change what doesn't:\n\n"
 )
 
+# Create job text for /plan. Invent a full day; no current-plan JSON attached.
+def _create_job_instructions(meals_per_day: int) -> str:
+    return f"""
 
-# Called from /plan AND /chat on every request. Turns a UserProfile (and, once
-# it exists, the latest MealPlan) into the "system" instruction string we send
-# to the LLM — the agent's personality, this user's hard constraints, and the
-# current plan as the source of truth for what to edit.
-#
-# Note: allergies and dislikes are rendered as TWO separate prompt lines on
-# purpose:
-#   - Allergies  -> "CRITICAL ... never include" (safety-critical).
-#   - Dislikes   -> "AVOID WHEN POSSIBLE"         (preference).
-# Merging them would risk the LLM treating a dislike like an emergency, or an
-# allergy like a mild hint.
-def build_system_prompt(profile: UserProfile, plan: MealPlan | None = None) -> str:
-    # `dict.get(key, default)` returns the value if the key exists, otherwise
-    # the default — never raises KeyError. Safer than `_GOAL_PHRASING[key]`.
-    goal_text = _GOAL_PHRASING.get(profile.goal, profile.goal)
-    allergies_text = _format_allergies(profile.allergies)
-    dislikes_text = _format_dislikes(profile.disliked_ingredients)
-    cuisines_text = _format_cuisines(profile.cuisine_preferences)
-    flavors_text = _format_flavors(profile.flavor_profiles)
-    macro_text = _format_macro_targets(profile)
+Your job is to CREATE a realistic daily meal plan from scratch using Brazilian ingredients and cooking traditions, adapted to the user's preferences. Prioritize balance and variety across the day.
 
-    # Adjacent string literals (no comma between them) get concatenated by
-    # Python at parse time. `f"..."` strings interpolate `{expr}` inline.
-    prompt = (
-        "You are a warm, practical Brazilian nutritionist. "
-        "You design realistic daily meal plans using Brazilian ingredients "
-        "and cooking traditions, adapted to the user's preferences. You always "
-        f"reply with a full day of exactly {profile.meals_per_day} meals that "
-        "together hit the user's calorie target within ~10%.\n\n"
-        f"The user {goal_text}. "
-        f"Their daily calorie target is {profile.calorie_target} kcal.\n"
-        f"{macro_text}"
-        f"{cuisines_text}\n"
-        f"{flavors_text}\n\n"
-        f"{allergies_text}\n"
-        f"{dislikes_text}"
+Produce a full day of exactly {meals_per_day} meals.
+"""
+
+
+# Edit job text for /chat. Placed BEFORE the plan JSON so the model reads
+def _edit_job_instructions(meals_per_day: int) -> str:
+    return f"""
+
+Your job is to EDIT the current meal plan (below), not create a new one from scratch. The current plan is the baseline: assume the user likes it unless they explicitly say otherwise or ask for a completely new plan.
+
+Editing principles:
+
+- Make the smallest set of changes that satisfies the user's request while keeping the plan practical, balanced, and realistic. Keep changes local to the request: do not touch unrelated meals or add optimizations nobody asked for.
+- Escalate only when necessary, in this order of preference:
+  1. Adjust quantities of existing foods.
+  2. Replace individual foods within a meal / Modify a single meal.
+  3. Modify multiple meals.
+  4. Rewrite the entire plan — only when smaller changes cannot reasonably satisfy the request or the nutritional requirements. If you do this, explicitly explain to the user why a larger rewrite was necessary.
+- When changing foods, prefer variety across the day: avoid unnecessarily repeating the same ingredient or protein source across multiple meals, especially for non-common foods.
+- If the user says they skipped a meal, treat it as not eaten: remove it and redistribute its calories and macros across the rest of the day as appropriate.
+- The result should feel like a carefully edited version of the existing plan that preserves the user's food preferences and eating patterns — not a new plan with similar calories and macros.
+- The user's usual meal count is {meals_per_day}. Treat this as the default, not a requirement. Prefer preserving the number of meals when it reasonably satisfies the user's request, but increase or decrease it whenever doing so results in a more practical, a more natural meal plan, or if the user skipped a meal...
+
+Current meal plan:
+"""
+
+
+# ---------------------------------------------------------------------------
+# Shared context — used by BOTH create and edit modes
+# ---------------------------------------------------------------------------
+# Persona + hard rules + this user's constraints.
+# Helpers below only prepare VALUES (lists joined, empty defaults).
+# The sentences here are the actual prompt the model sees.
+def _build_shared_context(profile: UserProfile) -> str:
+    goal = _GOAL_PHRASING.get(profile.goal, profile.goal)
+    allergies = _allergies(profile.allergies)
+    dislikes = _dislikes(profile.disliked_ingredients)
+    cuisines = _cuisines(profile.cuisine_preferences)
+    flavors = _flavors(profile.flavor_profiles)
+    macros = _macro_targets(profile)
+
+    return (
+    "You are a warm, practical Brazilian nutritionist who creates realistic, enjoyable meal plans using foods the user is likely to eat.\n\n"
+
+    "Primary objective:\n"
+    f"- Help the user {goal}.\n"
+    f"- Target approximately {profile.calorie_target} kcal/day, ideally within 5% and never more than 10%.\n"
+    f"{macros}"
+
+    "Preferences:\n"
+    f"- Preferred cuisines: {cuisines}. Feel free to mix them naturally throughout the day.\n"
+    f"- Preferred flavor profiles: {flavors}.\n"
+    f"- Foods to avoid when reasonably possible: {dislikes}.\n\n"
+
+    "Hard safety constraints:\n"
+    f"- Allergies: {allergies}.\n"
+    "- Never include these ingredients or foods that commonly contain them.\n\n"
     )
 
-    # If the plan is not None, we add the current meal plan to the prompt (for the first call it usually won't have a plan yet).
-    if plan is not None:
-        prompt += (
-            "\n\nCurrent meal plan:\n"
-            + plan.model_dump_json()
-        )
 
-    return prompt
+# ---------------------------------------------------------------------------
+# Public builders — shared facts + the matching job constant
+# ---------------------------------------------------------------------------
+
+# /plan (+ evals): shared + create job.
+def build_create_system_prompt(profile: UserProfile) -> str:
+    return _build_shared_context(profile) + _create_job_instructions(profile.meals_per_day)
 
 
-# Called ONLY from /plan (not /chat). Synthesizes the user's first "turn" so
-# that /plan and /chat both end up calling llm.chat(...) with the same shape
-# of input. Profile fields live in the system prompt — this message is just
-# the task.
+# /chat: shared + edit job + current plan as JSON.
+def build_edit_system_prompt(profile: UserProfile, plan: MealPlan) -> str:
+    return (
+        _build_shared_context(profile)
+        + _edit_job_instructions(profile.meals_per_day)
+        + plan.model_dump_json()
+    )
+
+
+# ---------------------------------------------------------------------------
+# User / assistant message helpers (not the system prompt)
+# ---------------------------------------------------------------------------
+
+# Synthetic first user turn for /plan so /plan and /chat both call llm.chat
+# with the same input shape (system + messages). Content is just the task.
 def build_initial_user_message() -> str:
     return _INITIAL_USER_MESSAGE
 
 
-# Called from /plan/import when source_text is not already MealPlan JSON
-# (as_is mode). The pasted/extracted plan body is the user turn.
+# /plan/import as_is: prefix + the user's pasted or PDF-extracted plan text.
+# .strip() removes leading/trailing whitespace so we don't waste tokens.
 def build_import_user_message(source_text: str) -> str:
     return _IMPORT_USER_MESSAGE_PREFIX + source_text.strip()
 
 
-# Called from /plan/import in adapt mode — ask the model to edit the plan
-# against the profile already in the system prompt.
+# /plan/import adapt: same pattern, but the prefix asks to fit preferences.
 def build_import_adapt_user_message(source_text: str) -> str:
     return _IMPORT_ADAPT_USER_MESSAGE_PREFIX + source_text.strip()
 
 
-# Short note stored in history instead of the full MealPlan JSON. Prefer the
-# plan's own `notes`; fall back when the model left that field empty.
+# What we store in conversation history instead of the full MealPlan JSON.
+# Prefer the model's own `notes` field; fall back if it left notes blank.
 def build_assistant_note(plan: MealPlan) -> str:
     note = plan.notes.strip()
     if note:
@@ -110,86 +166,64 @@ def build_assistant_note(plan: MealPlan) -> str:
     return "Updated the meal plan."
 
 
-# Helper for build_system_prompt above. Turns the user's allergies list into
-# the SAFETY-CRITICAL line of the prompt, or a fallback line if empty.
-def _format_allergies(allergies: list[str]) -> str:
-    # `if not allergies` is the truthy-check idiom: empty list -> False ->
-    # we enter this branch. Works for None, "", [], {}, 0 — all "falsy".
+# ---------------------------------------------------------------------------
+# Value helpers — each returns ONLY the variable inserted into the template
+# above (joined lists / empty defaults). Not full sentences.
+# ---------------------------------------------------------------------------
+
+# ['peanuts', 'shellfish'] → 'peanuts, shellfish' ; [] → 'none known'
+def _allergies(allergies: list[str]) -> str:
     if not allergies:
-        return "The user has no known food allergies."
-    # `", ".join(list)` = glue every element with ", " between them.
-    # Counter-intuitive call site: you call it on the SEPARATOR, not the list.
-    joined = ", ".join(allergies)
-    return (
-        f"CRITICAL (safety): the user is allergic to: {joined}. "
-        "Never include these ingredients, or anything that typically "
-        "contains them, in any meal. This is a hard safety requirement."
-    )
+        return "none known"
+    return ", ".join(allergies)
 
 
-# Helper for build_system_prompt. Renders disliked ingredients as a
-# PREFERENCE line — deliberately softer wording than allergies, so the LLM
-# doesn't treat them as safety-critical.
-def _format_dislikes(dislikes: list[str]) -> str:
+# ['cilantro'] → 'cilantro' ; [] → 'none'
+def _dislikes(dislikes: list[str]) -> str:
     if not dislikes:
-        return "The user has no strong ingredient dislikes."
-    joined = ", ".join(dislikes)
-    return (
-        f"AVOID WHEN POSSIBLE (preference): the user dislikes: {joined}. "
-        "These are not dangerous — they are strong preferences. Do not build "
-        "meals around them; substitute freely."
-    )
+        return "none"
+    return ", ".join(dislikes)
 
 
-# Helper for build_system_prompt. Renders cuisine preferences into one prompt
-# line, using "X and Y" / "X, Y and Z" style joining via _join_or().
-def _format_cuisines(cuisines: list[str]) -> str:
+# ['Bahian', 'Japanese'] → 'Bahian and Japanese' ; [] → 'any Brazilian-leaning'
+def _cuisines(cuisines: list[str]) -> str:
     if not cuisines:
-        return "Cuisine: any Brazilian-leaning style is fine."
-    joined = _join_or(cuisines)
-    # Plural wording even for one item reads fine and keeps the prompt
-    # consistent for the multi-cuisine cases we now support.
-    return f"Cuisine preferences: {joined}. Feel free to blend them across the day."
+        return "any Brazilian-leaning"
+    return _join_natural(cuisines)
 
 
-# Helper for build_system_prompt. Renders preferred flavor profiles
-# (savory, sweet, spicy, ...) into one prompt line.
-def _format_flavors(flavors: list[str]) -> str:
+# ['savory', 'umami'] → 'savory, umami' ; [] → 'no strong preference'
+def _flavors(flavors: list[str]) -> str:
     if not flavors:
-        return "Flavor profile: no strong preference — cook balanced."
-    joined = ", ".join(flavors)
-    return f"Preferred flavor profiles: {joined}."
+        return "no strong preference"
+    return ", ".join(flavors)
 
 
-# Helper for build_system_prompt. Emits one prompt line per macro target that
-# the user actually set (protein / carbs / fat in grams). Returns "" when
-# none are set, so the surrounding prompt doesn't end up with a blank line.
-def _format_macro_targets(profile: UserProfile) -> str:
-    # Pair the Python attribute with the label we'd show in the prompt.
-    # `list[tuple[str, int | None]]` of (label, value) so we can loop uniformly.
+# Optional macro targets (g/day). Returns "" when none are set so the shared
+# prompt does not gain a blank line for unset fields.
+def _macro_targets(profile: UserProfile) -> str:
+    # (label_for_prompt, value_from_profile) pairs so we can loop the same way.
     targets: list[tuple[str, int | None]] = [
         ("protein", profile.protein_g_target),
         ("carbs", profile.carbs_g_target),
         ("fat", profile.fat_g_target),
     ]
-    # `[... for ... if ...]` = list comprehension WITH a filter. Keeps only
-    # the rows whose value is not None.
+    # Keep only macros the user actually set (value is not None).
     set_targets = [(label, val) for label, val in targets if val is not None]
     if not set_targets:
         return ""
     lines = [f"Target {label}: {val}g per day." for label, val in set_targets]
-    # `"\n".join(lines) + "\n"` -> each line on its own row, block ends in \n.
+    # Join with newlines and end with \n so the next prompt line sits cleanly.
     return "\n".join(lines) + "\n"
 
 
-# Small string helper used by _format_cuisines.
-# Joins a list with commas, using " and " before the LAST element.
-#   ['Bahian', 'Japanese']            -> 'Bahian and Japanese'
-#   ['Bahian', 'Japanese', 'Mineira'] -> 'Bahian, Japanese and Mineira'
-def _join_or(items: list[str]) -> str:
+# Natural-language list join:
+#   ['Bahian', 'Japanese']            → 'Bahian and Japanese'
+#   ['Bahian', 'Japanese', 'Mineira'] → 'Bahian, Japanese and Mineira'
+def _join_natural(items: list[str]) -> str:
     if not items:
         return ""
     if len(items) == 1:
         return items[0]
-    # `items[:-1]` = all but last; `items[-1]` = last. Classic Python slicing.
+    # items[:-1] = all but last; items[-1] = last item.
     return ", ".join(items[:-1]) + " and " + items[-1]

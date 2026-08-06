@@ -28,6 +28,9 @@ build/
 # Phase 3 eval traces — local artefact, not source of truth
 traces.db
 
+# Portable eval framework — local artefact, not source of truth
+eval_framework/data/evals.db
+
 # Durable user accounts now live in Supabase — local SQLite file is obsolete
 users.db
 

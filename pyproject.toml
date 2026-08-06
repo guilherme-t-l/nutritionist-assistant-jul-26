@@ -31,6 +31,7 @@ entrypoint = "src.app.main:app"
 [tool.pytest.ini_options]
 # Makes `from src.app.main import app` resolvable from tests without installing the package.
 pythonpath = ["."]
-testpaths = ["tests"]
+# Host-app tests live in tests/; the portable eval framework keeps its own.
+testpaths = ["tests", "eval_framework/tests"]
 # Keep pytest's internal cache out of the project root; see non-relevant/README.md.
 cache_dir = "non-relevant/.pytest_cache"

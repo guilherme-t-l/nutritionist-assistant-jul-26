@@ -18,9 +18,9 @@ from pypdf import PdfReader
 
 from agent.llm import LLM, Message
 from agent.prompts import (
+    build_create_system_prompt,
     build_import_adapt_user_message,
     build_import_user_message,
-    build_system_prompt,
 )
 from agent.schemas import MealPlan, UserProfile
 
@@ -114,7 +114,9 @@ def normalize_meal_plan(
         system_prompt = _AS_IS_SYSTEM_PROMPT
         user_message = Message(role="user", content=build_import_user_message(text))
     else:
-        system_prompt = build_system_prompt(profile) + _ADAPT_SYSTEM_SUFFIX
+        # Adapt uses create (profile + invent framing) + adapt suffix — not the
+        # conversational /chat edit ladder.
+        system_prompt = build_create_system_prompt(profile) + _ADAPT_SYSTEM_SUFFIX
         user_message = Message(
             role="user", content=build_import_adapt_user_message(text)
         )

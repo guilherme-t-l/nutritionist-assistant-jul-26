@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from agent.llm import LLM, Message
-from agent.prompts import build_assistant_note, build_system_prompt
+from agent.prompts import build_assistant_note, build_edit_system_prompt
 from agent.schemas import MealPlan
 from agent.session import SessionStore
 from src.app.dependencies import get_llm, get_session_store
@@ -57,17 +57,21 @@ def chat(
     # and safer against weird classes that override `__eq__`.
     if session is None:
         raise HTTPException(status_code=404, detail="Unknown session_id. Call /plan first.")
+    if session.current_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No meal plan to edit. Call /plan first.",
+        )
 
     user_turn = Message(role="user", content=request.message)
     # `list + list` returns a NEW list — `session.history` isn't mutated here.
     # We only append to history below, AFTER the LLM reply validates cleanly.
     conversation = session.history + [user_turn]
 
-    # Later calls: inject the latest plan into system so the model edits that,
-    # not whatever JSON used to sit in history.
+    # Edit path: shared profile constraints + edit job + current plan JSON.
     raw_reply = llm.chat(
         messages=conversation,
-        system=build_system_prompt(session.profile, plan=session.current_plan),
+        system=build_edit_system_prompt(session.profile, session.current_plan),
         response_schema=MealPlan,
     )
 

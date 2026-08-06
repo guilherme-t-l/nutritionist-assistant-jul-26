@@ -1,21 +1,22 @@
 """Unit tests for prompt building.
 
-Because `build_system_prompt` is a pure function, we can assert on the
-exact phrases it emits — no LLM, no network, no fixtures.
+Because create/edit builders are pure functions, we can assert on the
+exact phrases they emit — no LLM, no network, no fixtures.
 """
 
 from __future__ import annotations
 
 from agent.prompts import (
     build_assistant_note,
+    build_create_system_prompt,
+    build_edit_system_prompt,
     build_initial_user_message,
-    build_system_prompt,
 )
 from agent.schemas import Food, Meal, MealPlan, UserProfile
 
 
-# Tiny MealPlan fixture for the new "current plan in system" / assistant-note
-# tests. `*` before `notes` means callers must pass notes by name
+# Tiny MealPlan fixture for edit-prompt / assistant-note tests.
+# `*` before `notes` means callers must pass notes by name
 # (`notes="..."`), so we don't accidentally mix it up with positional args.
 def _sample_plan(*, notes: str = "Swapped lunch for a lighter option.") -> MealPlan:
     return MealPlan(
@@ -39,6 +40,9 @@ def _sample_plan(*, notes: str = "Swapped lunch for a lighter option.") -> MealP
     )
 
 
+# --- Shared profile constraints (asserted via create prompt) -----------------
+
+
 def test_system_prompt_includes_allergies_loudly() -> None:
     profile = UserProfile(
         goal="lose_weight",
@@ -47,20 +51,21 @@ def test_system_prompt_includes_allergies_loudly() -> None:
         cuisine_preferences=["Mineira"],
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     assert "peanuts" in prompt
     assert "shellfish" in prompt
     assert "CRITICAL" in prompt
 
 
-def test_system_prompt_omits_allergy_section_when_empty() -> None:
+def test_system_prompt_uses_none_known_when_allergies_empty() -> None:
     profile = UserProfile(goal="maintain", calorie_target=2000)
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
-    assert "no known food allergies" in prompt
-    assert "CRITICAL" not in prompt
+    # Template always includes the CRITICAL line; empty list → "none known".
+    assert "allergic to: none known" in prompt
+    assert "CRITICAL" in prompt
 
 
 def test_system_prompt_mentions_calorie_target_and_cuisines_plural() -> None:
@@ -70,7 +75,7 @@ def test_system_prompt_mentions_calorie_target_and_cuisines_plural() -> None:
         cuisine_preferences=["Bahian", "Japanese"],
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     assert "2800" in prompt
     assert "Bahian" in prompt
@@ -90,7 +95,7 @@ def test_system_prompt_keeps_allergies_and_dislikes_distinct() -> None:
         disliked_ingredients=["cilantro"],
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     assert "CRITICAL" in prompt
     assert "shellfish" in prompt
@@ -107,17 +112,18 @@ def test_system_prompt_keeps_allergies_and_dislikes_distinct() -> None:
     assert "shellfish" not in avoid_block
 
 
-def test_system_prompt_omits_dislikes_when_empty() -> None:
+def test_system_prompt_uses_none_when_dislikes_empty() -> None:
     profile = UserProfile(
         goal="maintain",
         calorie_target=2000,
         allergies=["peanuts"],
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
-    assert "no strong ingredient dislikes" in prompt
-    assert "AVOID WHEN POSSIBLE" not in prompt
+    # Template always includes the AVOID line; empty list → "none".
+    assert "dislikes: none" in prompt
+    assert "AVOID WHEN POSSIBLE" in prompt
 
 
 def test_system_prompt_includes_macro_targets_when_set() -> None:
@@ -129,7 +135,7 @@ def test_system_prompt_includes_macro_targets_when_set() -> None:
         fat_g_target=80,
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     assert "180" in prompt
     assert "300" in prompt
@@ -142,7 +148,7 @@ def test_system_prompt_includes_macro_targets_when_set() -> None:
 def test_system_prompt_omits_macro_targets_when_unset() -> None:
     profile = UserProfile(goal="maintain", calorie_target=2000)
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     # None of the macro-target lines should appear when the user set none.
     assert "Target protein" not in prompt
@@ -158,7 +164,7 @@ def test_system_prompt_includes_only_set_macro_targets() -> None:
         protein_g_target=150,
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     assert "150" in prompt
     assert "Target protein" in prompt
@@ -169,12 +175,10 @@ def test_system_prompt_includes_only_set_macro_targets() -> None:
 def test_system_prompt_states_meal_count() -> None:
     profile = UserProfile(goal="maintain", calorie_target=2000, meals_per_day=5)
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
-    # The number itself should appear; the prompt tells the LLM to produce
-    # exactly that many meals.
-    assert "5" in prompt
-    assert "meals" in prompt
+    # Create mode must hard-require the profile meal count.
+    assert "exactly 5 meals" in prompt
 
 
 def test_system_prompt_includes_flavor_profiles_when_set() -> None:
@@ -184,36 +188,67 @@ def test_system_prompt_includes_flavor_profiles_when_set() -> None:
         flavor_profiles=["savory", "umami"],
     )
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
     assert "savory" in prompt
     assert "umami" in prompt
 
 
-# First /plan call: plan=None, so the system prompt is persona + profile only.
-def test_system_prompt_omits_current_plan_when_none() -> None:
+# --- Create-only -------------------------------------------------------------
+
+
+def test_create_prompt_states_create_job_and_omits_edit_plan() -> None:
     profile = UserProfile(goal="maintain", calorie_target=2000)
 
-    prompt = build_system_prompt(profile)
+    prompt = build_create_system_prompt(profile)
 
+    assert "CREATE a realistic daily meal plan from scratch" in prompt
     assert "Current meal plan" not in prompt
-    # Edit-rules paragraph was removed — current plan in system covers later calls.
+    assert "Editing principles" not in prompt
     assert "When the user asks for a change" not in prompt
 
 
-# Later /chat call: we pass the latest plan so the LLM sees it in system,
-# not buried as a full JSON in history.
-def test_system_prompt_includes_current_plan_when_provided() -> None:
+# --- Edit-only ---------------------------------------------------------------
+
+
+def test_edit_prompt_includes_edit_job_and_current_plan() -> None:
     profile = UserProfile(goal="maintain", calorie_target=2000)
     plan = _sample_plan()
 
-    prompt = build_system_prompt(profile, plan=plan)
+    prompt = build_edit_system_prompt(profile, plan)
 
+    assert "EDIT the current meal plan" in prompt
+    assert "Editing principles" in prompt
     assert "Current meal plan:" in prompt
     assert "Almoço" in prompt
     assert "grilled chicken" in prompt
     # The whole serialized plan should appear — that's the source of truth.
     assert plan.model_dump_json() in prompt
+    # Create-from-scratch must not be the primary job in edit mode.
+    assert "CREATE a realistic daily meal plan from scratch" not in prompt
+
+
+def test_edit_prompt_includes_shared_profile_constraints() -> None:
+    profile = UserProfile(
+        goal="lose_weight",
+        calorie_target=1800,
+        allergies=["peanuts"],
+        meals_per_day=4,
+    )
+    plan = _sample_plan()
+
+    prompt = build_edit_system_prompt(profile, plan)
+
+    assert "Brazilian nutritionist" in prompt
+    assert "1800" in prompt
+    assert "CRITICAL" in prompt
+    assert "peanuts" in prompt
+    # Usual count is guidance; create's hard lock must not appear in edit.
+    assert "usual meal count is 4" in prompt
+    assert "Produce a full day of exactly" not in prompt
+
+
+# --- User / assistant message helpers ----------------------------------------
 
 
 # First user turn is just the task. Calories / cuisine / meal count already

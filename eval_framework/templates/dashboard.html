@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Eval Framework{% endblock %}
+
+{% block extra_css %}
+.dash-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .dash-layout { grid-template-columns: 1fr; }
+}
+.sidebar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 0.75rem;
+}
+.sidebar a {
+  display: block;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  color: var(--ink-soft);
+  font-weight: 500;
+  margin-bottom: 0.2rem;
+}
+.sidebar a:hover { background: var(--sage-soft); text-decoration: none; }
+.sidebar a.active {
+  background: var(--accent);
+  color: var(--surface);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 1rem;
+  box-shadow: var(--shadow);
+}
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.filters select, .filters input {
+  min-width: 10rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 1rem;
+  box-shadow: var(--shadow);
+}
+.stat .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.stat .value { font-family: var(--font-display); font-size: 1.7rem; margin-top: 0.2rem; }
+.stat .sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+.charts {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+@media (max-width: 800px) {
+  .charts { grid-template-columns: 1fr; }
+}
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  box-shadow: var(--shadow);
+}
+.chart-card h2 { font-size: 1.05rem; margin-bottom: 0.75rem; }
+.chart-wrap { position: relative; height: 220px; }
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+table.data th, table.data td {
+  text-align: left;
+  padding: 0.55rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.data th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.pill {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.pill-pass { background: var(--ok-soft); color: var(--ok); }
+.pill-fail { background: var(--danger-soft); color: var(--danger); }
+.pill-fp { background: var(--danger-soft); color: var(--danger); }
+.pill-fn { background: var(--warn-soft); color: var(--warn); }
+.quad-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+}
+.quad {
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.quad.agree { background: var(--ok-soft); border-color: transparent; }
+.quad.fp { background: var(--danger-soft); border-color: transparent; }
+.quad.fn { background: var(--warn-soft); border-color: transparent; }
+.quad .n { font-family: var(--font-display); font-size: 1.6rem; }
+.quad .t { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.15rem; }
+.caveat {
+  background: var(--warn-soft);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  color: var(--ink-soft);
+}
+.failure details {
+  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0;
+}
+.failure summary { cursor: pointer; font-weight: 600; }
+.failure .reason { margin-top: 0.4rem; color: var(--ink-soft); font-size: 0.9rem; }
+.empty-state { color: var(--muted); padding: 1.5rem 0; text-align: center; }
+.view { display: none; }
+.view.active { display: block; }
+{% endblock %}
+
+{% block content %}
+<form class="filters" id="filter-form" method="get" action="/dashboard">
+  <input type="hidden" name="view" id="view-input" value="{{ view }}" />
+  <label>
+    Batch
+    <select name="batch" id="batch-select">
+      <option value="all" {% if not batch_id %}selected{% endif %}>All batches</option>
+      {% for b in batches %}
+      <option value="{{ b.batch_id }}" {% if batch_id == b.batch_id %}selected{% endif %}>
+        {{ b.name }} ({{ b.created_at[:10] }})
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    From
+    <input type="date" name="from" id="from-input" value="{{ date_from or '' }}" />
+  </label>
+  <label>
+    To
+    <input type="date" name="to" id="to-input" value="{{ date_to or '' }}" />
+  </label>
+  <button type="submit" class="btn btn-primary">Apply</button>
+</form>
+
+<div class="dash-layout">
+  <nav class="sidebar" id="view-nav">
+    <a href="#" data-view="overview" class="{% if view == 'overview' %}active{% endif %}">Overview</a>
+    <a href="#" data-view="agent_vs_human" class="{% if view == 'agent_vs_human' %}active{% endif %}">Agent vs Human</a>
+    <a href="#" data-view="judge_vs_agent" class="{% if view == 'judge_vs_agent' %}active{% endif %}">Judge vs Agent</a>
+    <a href="#" data-view="judge_vs_human" class="{% if view == 'judge_vs_human' %}active{% endif %}">Judge vs Human</a>
+  </nav>
+
+  <div id="dash-main">
+    <p class="muted" id="loading">Loading metrics…</p>
+
+    <!-- Overview -->
+    <section class="view {% if view == 'overview' %}active{% endif %}" data-view-panel="overview">
+      <div class="stat-grid" id="overview-stats"></div>
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Overall pass rate</h2>
+          <div class="chart-wrap"><canvas id="chart-donut"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Pass-rate trend</h2>
+          <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h2>Comparison types</h2>
+        <table class="data" id="overview-table"></table>
+      </div>
+    </section>
+
+    <!-- Agent vs Human -->
+    <section class="view {% if view == 'agent_vs_human' %}active{% endif %}" data-view-panel="agent_vs_human">
+      <div class="stat-grid" id="avh-stats"></div>
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Pass / Fail</h2>
+          <div class="chart-wrap"><canvas id="chart-avh-pie"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Pass rate by category</h2>
+          <div class="chart-wrap"><canvas id="chart-avh-bars"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h2>Audit log</h2>
+        <table class="data" id="avh-audit"></table>
+      </div>
+    </section>
+
+    <!-- Judge vs Agent -->
+    <section class="view {% if view == 'judge_vs_agent' %}active{% endif %}" data-view-panel="judge_vs_agent">
+      <div class="caveat" id="jva-caveat"></div>
+      <div class="stat-grid" id="jva-stats"></div>
+      <div class="chart-card">
+        <h2>Failed conversations (judge)</h2>
+        <div id="jva-failures"></div>
+      </div>
+    </section>
+
+    <!-- Judge vs Human -->
+    <section class="view {% if view == 'judge_vs_human' %}active{% endif %}" data-view-panel="judge_vs_human">
+      <div class="stat-grid" id="jvh-stats"></div>
+      <div class="quad-grid" id="jvh-quads"></div>
+      <div class="chart-card">
+        <h2>Disagreements</h2>
+        <table class="data" id="jvh-table"></table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const COLORS = {
+    accent: "#3a4a38",
+    sage: "#7d917c",
+    danger: "#8f3a32",
+    warn: "#8a6a2f",
+    mute: "#c8c2b6",
+  };
+  const charts = {};
+  let data = null;
+
+  function pct(rate) {
+    if (rate === null || rate === undefined) return "—";
+    return Math.round(rate * 1000) / 10 + "%";
+  }
+
+  function pill(verdict) {
+    const cls = verdict === "pass" ? "pill-pass" : "pill-fail";
+    return `<span class="pill ${cls}">${verdict}</span>`;
+  }
+
+  function destroyChart(key) {
+    if (charts[key]) {
+      charts[key].destroy();
+      delete charts[key];
+    }
+  }
+
+  function qs() {
+    const params = new URLSearchParams();
+    const batch = document.getElementById("batch-select").value;
+    const from = document.getElementById("from-input").value;
+    const to = document.getElementById("to-input").value;
+    if (batch && batch !== "all") params.set("batch", batch);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return params.toString();
+  }
+
+  async function loadData() {
+    const query = qs();
+    const res = await fetch("/api/dashboard-data" + (query ? "?" + query : ""));
+    if (!res.ok) throw new Error("Failed to load dashboard data");
+    data = await res.json();
+    document.getElementById("loading").style.display = "none";
+    renderAll();
+  }
+
+  function setView(view) {
+    document.getElementById("view-input").value = view;
+    document.querySelectorAll("#view-nav a").forEach((a) => {
+      a.classList.toggle("active", a.dataset.view === view);
+    });
+    document.querySelectorAll("[data-view-panel]").forEach((panel) => {
+      panel.classList.toggle("active", panel.dataset.viewPanel === view);
+    });
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", view);
+    history.replaceState(null, "", url.toString());
+    // Re-draw charts for the newly visible panel (Chart.js needs visible canvas).
+    renderAll();
+  }
+
+  function renderOverview() {
+    const o = data.overview;
+    document.getElementById("overview-stats").innerHTML = `
+      <div class="stat"><div class="label">Conversations</div><div class="value">${o.total_conversations}</div><div class="sub">${o.total_reviewed} reviewed</div></div>
+      <div class="stat"><div class="label">Human pass rate</div><div class="value">${pct(o.human_pass_rate.rate)}</div><div class="sub">n=${o.human_pass_rate.total}</div></div>
+      <div class="stat"><div class="label">Judge pass rate</div><div class="value">${pct(o.judge_pass_rate.rate)}</div><div class="sub">n=${o.judge_pass_rate.total}</div></div>
+      <div class="stat"><div class="label">Alignment</div><div class="value">${pct(o.alignment_rate)}</div><div class="sub">n=${o.alignment_n} paired</div></div>
+    `;
+
+    const human = o.human_pass_rate;
+    destroyChart("donut");
+    charts.donut = new Chart(document.getElementById("chart-donut"), {
+      type: "doughnut",
+      data: {
+        labels: ["Pass", "Fail"],
+        datasets: [{
+          data: human.total ? [human.passes, human.fails] : [0, 1],
+          backgroundColor: human.total ? [COLORS.accent, COLORS.danger] : [COLORS.mute, COLORS.mute],
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom" },
+          title: {
+            display: true,
+            text: human.total ? `Human · ${pct(human.rate)}` : "No human ratings yet",
+          },
+        },
+      },
+    });
+
+    destroyChart("trend");
+    const trend = o.pass_rate_trend;
+    charts.trend = new Chart(document.getElementById("chart-trend"), {
+      type: "line",
+      data: {
+        labels: trend.map((t) => t.date),
+        datasets: [
+          {
+            label: "Human",
+            data: trend.map((t) => (t.human_rate === null ? null : t.human_rate * 100)),
+            borderColor: COLORS.accent,
+            tension: 0.25,
+            spanGaps: true,
+          },
+          {
+            label: "Judge",
+            data: trend.map((t) => (t.judge_rate === null ? null : t.judge_rate * 100)),
+            borderColor: COLORS.sage,
+            tension: 0.25,
+            spanGaps: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } },
+        },
+        plugins: { legend: { position: "bottom" } },
+      },
+    });
+
+    const rows = o.comparison_types.map((c) => {
+      const label = c.metric_label === "alignment_rate" ? "Alignment" : "Pass rate";
+      return `<tr>
+        <td>${c.name}</td>
+        <td>${c.sample_size}</td>
+        <td>${label}: <strong>${pct(c.pass_rate)}</strong></td>
+      </tr>`;
+    }).join("");
+    document.getElementById("overview-table").innerHTML = `
+      <thead><tr><th>Comparison</th><th>Sample</th><th>Metric</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="3" class="empty-state">No data yet</td></tr>'}</tbody>
+    `;
+  }
+
+  function renderAgentVsHuman() {
+    const a = data.agent_vs_human;
+    document.getElementById("avh-stats").innerHTML = `
+      <div class="stat"><div class="label">Pass rate</div><div class="value">${pct(a.pass_rate.rate)}</div><div class="sub">n=${a.pass_rate.total}</div></div>
+      <div class="stat"><div class="label">Passes</div><div class="value">${a.pass_fail.pass}</div></div>
+      <div class="stat"><div class="label">Fails</div><div class="value">${a.pass_fail.fail}</div></div>
+    `;
+
+    destroyChart("avhPie");
+    charts.avhPie = new Chart(document.getElementById("chart-avh-pie"), {
+      type: "doughnut",
+      data: {
+        labels: ["Pass", "Fail"],
+        datasets: [{
+          data: [a.pass_fail.pass, a.pass_fail.fail],
+          backgroundColor: [COLORS.accent, COLORS.danger],
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+    });
+
+    destroyChart("avhBars");
+    charts.avhBars = new Chart(document.getElementById("chart-avh-bars"), {
+      type: "bar",
+      data: {
+        labels: a.by_category.map((c) => c.category),
+        datasets: [{
+          label: "Pass rate %",
+          data: a.by_category.map((c) => (c.pass_rate === null ? 0 : c.pass_rate * 100)),
+          backgroundColor: COLORS.accent,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } } },
+        plugins: { legend: { display: false } },
+      },
+    });
+
+    const auditRows = a.audit_log.map((r) => `
+      <tr>
+        <td><a href="${r.review_url}">${r.starter_id}</a></td>
+        <td>${r.category}</td>
+        <td>${pill(r.verdict)}</td>
+        <td class="muted">${r.created_at.replace("T", " ").slice(0, 16)}</td>
+      </tr>
+    `).join("");
+    document.getElementById("avh-audit").innerHTML = `
+      <thead><tr><th>Conversation</th><th>Category</th><th>Verdict</th><th>When</th></tr></thead>
+      <tbody>${auditRows || '<tr><td colspan="4" class="empty-state">No human ratings in this filter</td></tr>'}</tbody>
+    `;
+  }
+
+  function renderJudgeVsAgent() {
+    const j = data.judge_vs_agent;
+    const caveat = j.alignment_n
+      ? `Trust caveat: judge↔human alignment is <strong>${pct(j.alignment_rate)}</strong> on ${j.alignment_n} paired conversations. Judge-only pass rates are only as trustworthy as that alignment.`
+      : `Trust caveat: no paired human+judge verdicts yet — run an alignment check before trusting judge-only numbers.`;
+    document.getElementById("jva-caveat").innerHTML = caveat;
+    document.getElementById("jva-stats").innerHTML = `
+      <div class="stat"><div class="label">Judge pass rate</div><div class="value">${pct(j.pass_rate.rate)}</div><div class="sub">n=${j.pass_rate.total}</div></div>
+      <div class="stat"><div class="label">Passes</div><div class="value">${j.pass_rate.passes}</div></div>
+      <div class="stat"><div class="label">Fails</div><div class="value">${j.pass_rate.fails}</div></div>
+    `;
+    const failures = j.failures.map((f) => `
+      <div class="failure">
+        <details>
+          <summary>${f.starter_id} · ${f.category} · <a href="${f.review_url}">open</a></summary>
+          <div class="reason">${f.reasoning || "(no reasoning)"}</div>
+          <div class="muted" style="margin-top:0.25rem;font-size:0.8rem;">
+            ${f.judge_prompt_version || "—"} · ${f.judge_model || "—"}
+          </div>
+        </details>
+      </div>
+    `).join("");
+    document.getElementById("jva-failures").innerHTML =
+      failures || '<div class="empty-state">No judge failures in this filter</div>';
+  }
+
+  function renderJudgeVsHuman() {
+    const j = data.judge_vs_human;
+    const q = j.quadrants;
+    document.getElementById("jvh-stats").innerHTML = `
+      <div class="stat"><div class="label">Alignment rate</div><div class="value">${pct(j.alignment_rate)}</div><div class="sub">n=${j.alignment_n} paired</div></div>
+      <div class="stat"><div class="label">False positives</div><div class="value">${q.false_positives}</div><div class="sub">judge pass, you fail</div></div>
+      <div class="stat"><div class="label">False negatives</div><div class="value">${q.false_negatives}</div><div class="sub">judge fail, you pass</div></div>
+    `;
+    document.getElementById("jvh-quads").innerHTML = `
+      <div class="quad agree"><div class="n">${q.both_pass}</div><div class="t">Both Pass</div></div>
+      <div class="quad agree"><div class="n">${q.both_fail}</div><div class="t">Both Fail</div></div>
+      <div class="quad fn"><div class="n">${q.human_pass_judge_fail}</div><div class="t">You Pass · Judge Fail<br><span class="muted">false negative</span></div></div>
+      <div class="quad fp"><div class="n">${q.human_fail_judge_pass}</div><div class="t">You Fail · Judge Pass<br><span class="muted">false positive</span></div></div>
+    `;
+    const rows = j.disagreements.map((d) => `
+      <tr>
+        <td><a href="${d.review_url}">${d.starter_id}</a></td>
+        <td>${pill(d.judge_verdict)}</td>
+        <td>${pill(d.human_verdict)}</td>
+        <td><span class="pill ${d.label === "false_positive" ? "pill-fp" : "pill-fn"}">${d.label.replace("_", " ")}</span></td>
+      </tr>
+    `).join("");
+    document.getElementById("jvh-table").innerHTML = `
+      <thead><tr><th>Case</th><th>Judge</th><th>You</th><th>Type</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" class="empty-state">No disagreements (or no paired verdicts)</td></tr>'}</tbody>
+    `;
+  }
+
+  function renderAll() {
+    if (!data) return;
+    renderOverview();
+    renderAgentVsHuman();
+    renderJudgeVsAgent();
+    renderJudgeVsHuman();
+  }
+
+  document.querySelectorAll("#view-nav a").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      setView(a.dataset.view);
+    });
+  });
+
+  loadData().catch((err) => {
+    document.getElementById("loading").textContent = "Error: " + err.message;
+  });
+})();
+</script>
+{% endblock %}
