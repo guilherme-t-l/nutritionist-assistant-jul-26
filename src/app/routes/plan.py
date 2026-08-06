@@ -17,8 +17,8 @@ from agent.llm import LLM, Message
 from agent.plan_import import ImportMode, extract_pdf_text, normalize_meal_plan
 from agent.prompts import (
     build_assistant_note,
+    build_create_system_prompt,
     build_initial_user_message,
-    build_system_prompt,
 )
 from agent.schemas import MealPlan, UserProfile
 from agent.session import SessionStore
@@ -81,8 +81,8 @@ def create_plan(
     # the two names on the left get bound to the two elements on the right.
     session_id, session = store.create(profile)
 
-    # First call: no current_plan yet — system is persona + profile only.
-    system_prompt = build_system_prompt(profile)
+    # First call: invent a full day — create job + shared profile constraints.
+    system_prompt = build_create_system_prompt(profile)
     first_user_message = Message(role="user", content=build_initial_user_message())
 
     raw_reply = llm.chat(
