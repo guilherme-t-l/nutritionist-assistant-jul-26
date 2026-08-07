@@ -1812,8 +1812,6 @@
       return [{ meals: plan.meals || [], notes: plan.notes || "" }];
     }
 
-    const MEAL_COURSES = ["Breakfast", "Lunch", "Dinner", "Snack", "Snack", "Snack", "Snack", "Snack"];
-
     function renderPlan(plan) {
       const card = $("plan-card");
       if (!plan || !plan.meals || plan.meals.length === 0) {
@@ -1844,8 +1842,8 @@
           : "Today's menu";
       }
 
-      day.meals.forEach((meal, i) => {
-        html += renderMeal(meal, i);
+      day.meals.forEach((meal) => {
+        html += renderMeal(meal);
       });
 
       // Daily totals — sum across meals. Schema gives us per-meal P/C/F/kcal
@@ -1898,8 +1896,10 @@
       });
     }
 
-    function renderMeal(meal, index = 0) {
-      const course = MEAL_COURSES[index] || `Meal ${index + 1}`;
+    function renderMeal(meal) {
+      // Meal heading comes only from the agent (`meal.name`). We used to
+      // overlay a position-based label (Breakfast/Lunch/Dinner by index),
+      // which drifted from the real plan whenever order or count changed.
       const foods = (meal.ingredients || []).map((food) => {
         const p = food.protein_g ?? 0;
         const c = food.carbs_g ?? 0;
@@ -1923,7 +1923,6 @@
       return `
         <section class="meal-block">
           <div class="meal-head">
-            <p class="meal-course">${course}</p>
             <h3 class="meal-name">${escapeHtml(meal.name || "")}</h3>
             <span class="meal-accent" aria-hidden="true"></span>
           </div>

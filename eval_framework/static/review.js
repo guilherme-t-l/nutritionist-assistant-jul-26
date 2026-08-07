@@ -26,17 +26,6 @@
   let busy = false;
   let activePlanIndex = 0;
 
-  const MEAL_COURSES = [
-    "Breakfast",
-    "Lunch",
-    "Dinner",
-    "Snack",
-    "Snack",
-    "Snack",
-    "Snack",
-    "Snack",
-  ];
-
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (ch) =>
       ({
@@ -73,8 +62,8 @@
     };
   }
 
-  function renderMeal(meal, index) {
-    const course = MEAL_COURSES[index] || "Meal " + (index + 1);
+  function renderMeal(meal) {
+    // Heading is meal.name only — no position-based Breakfast/Lunch overlay.
     const macros = mealMacros(meal);
     const foods = (meal.ingredients || [])
       .map((food) => {
@@ -100,7 +89,6 @@
     return `
       <section class="meal-block">
         <div class="meal-head">
-          <p class="meal-course">${course}</p>
           <h3 class="meal-name">${escapeHtml(meal.name || "")}</h3>
           <span class="meal-accent" aria-hidden="true"></span>
         </div>
@@ -143,8 +131,8 @@
     }
 
     let html = "";
-    plan.meals.forEach((meal, i) => {
-      html += renderMeal(meal, i);
+    plan.meals.forEach((meal) => {
+      html += renderMeal(meal);
     });
 
     const totals = plan.meals.reduce(
