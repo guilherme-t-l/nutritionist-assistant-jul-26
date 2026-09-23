@@ -7,14 +7,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError
 
 from agent.llm import LLM, Message
 from agent.prompts import build_assistant_note, build_edit_system_prompt
 from agent.schemas import MealPlan
 from agent.session import SessionStore
-from src.app.dependencies import get_llm, get_session_store
+from agent.users import UserStore
+from src.app.dependencies import get_llm, get_session_store, get_user_store
+from src.app.routes.auth import personal_foods_for_request
 
 
 router = APIRouter()
@@ -49,8 +51,10 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ChatResponse)
 def chat(
     request: ChatRequest,
+    http_request: Request,
     llm: LLM = Depends(get_llm),
     store: SessionStore = Depends(get_session_store),
+    user_store: UserStore = Depends(get_user_store),
 ) -> ChatResponse:
     session = store.get(request.session_id)
     # `is None` — use `is` (identity) for None checks, not `== None`. Faster,
@@ -68,10 +72,14 @@ def chat(
     # We only append to history below, AFTER the LLM reply validates cleanly.
     conversation = session.history + [user_turn]
 
-    # Edit path: shared profile constraints + edit job + current plan JSON.
+    # Edit path: profile constraints, this user's library (if any), then the plan.
+    # The library is read now, not from the session, so a food just saved is visible.
+    personal_foods = personal_foods_for_request(http_request, user_store)
     raw_reply = llm.chat(
         messages=conversation,
-        system=build_edit_system_prompt(session.profile, session.current_plan),
+        system=build_edit_system_prompt(
+            session.profile, session.current_plan, personal_foods
+        ),
         response_schema=MealPlan,
     )
 

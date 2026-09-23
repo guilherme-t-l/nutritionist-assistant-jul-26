@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from supabase import Client, create_client
 
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan, PersonalFood, UserProfile
 
 
 @dataclass
@@ -19,6 +19,8 @@ class UserRecord:
     username: str
     profile: UserProfile | None
     active_plan: MealPlan | None
+    # Empty list when the column is null — that user has no personal foods.
+    personal_foods: list[PersonalFood] = field(default_factory=list)
 
 
 def _require_env(name: str) -> str:
@@ -43,6 +45,20 @@ def _demo_passwords() -> dict[str, str]:
     if not isinstance(data, dict) or not data:
         raise RuntimeError("DEMO_USER_PASSWORDS must be a non-empty JSON object.")
     return {str(k): str(v) for k, v in data.items()}
+
+
+def _parse_personal_foods(raw: object) -> list[PersonalFood]:
+    """Null or blank column → []. A JSON list → PersonalFood objects."""
+    if raw is None or raw == "":
+        return []
+    data = json.loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(data, list):
+        raise ValueError("personal_foods_json must be a JSON list")
+    return [PersonalFood.model_validate(item) for item in data]
+
+
+def _dump_personal_foods(foods: list[PersonalFood]) -> str:
+    return json.dumps([food.model_dump(mode="json") for food in foods])
 
 
 class UserStore:
@@ -93,7 +109,7 @@ class UserStore:
     def get_user(self, username: str) -> UserRecord | None:
         result = (
             self._client.table("users")
-            .select("username, profile_json, active_plan_json")
+            .select("username, profile_json, active_plan_json, personal_foods_json")
             .eq("username", username)
             .limit(1)
             .execute()
@@ -115,6 +131,7 @@ class UserStore:
             username=row["username"],
             profile=profile,
             active_plan=active_plan,
+            personal_foods=_parse_personal_foods(row.get("personal_foods_json")),
         )
 
     def save_profile(self, username: str, profile: UserProfile) -> None:
@@ -147,6 +164,28 @@ class UserStore:
                     "active_plan_json": plan.model_dump_json(),
                 }
             )
+            .eq("username", username)
+            .execute()
+        )
+
+    def get_personal_foods(self, username: str) -> list[PersonalFood]:
+        """Read the library only. Missing user or null column → []."""
+        result = (
+            self._client.table("users")
+            .select("personal_foods_json")
+            .eq("username", username)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return []
+        return _parse_personal_foods(result.data[0].get("personal_foods_json"))
+
+    def save_personal_foods(self, username: str, foods: list[PersonalFood]) -> None:
+        """Replace personal_foods_json only — profile and active plan stay put."""
+        (
+            self._client.table("users")
+            .update({"personal_foods_json": _dump_personal_foods(foods)})
             .eq("username", username)
             .execute()
         )

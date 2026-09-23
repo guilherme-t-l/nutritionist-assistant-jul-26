@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 
 from src.app.routes import auth as auth_routes
 from src.app.routes import chat as chat_routes
+from src.app.routes import personal_foods as personal_foods_routes
 from src.app.routes import plan as plan_routes
 from src.app.routes import profile as profile_routes
 
@@ -59,5 +60,6 @@ def onboarding(request: Request) -> HTMLResponse:
 # back into the main app. Same URL space, different source files.
 app.include_router(auth_routes.router)
 app.include_router(profile_routes.router)
+app.include_router(personal_foods_routes.router)
 app.include_router(plan_routes.router)
 app.include_router(chat_routes.router)

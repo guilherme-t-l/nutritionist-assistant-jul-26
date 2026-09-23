@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan, PersonalFood, UserProfile
+from agent.users import _parse_personal_foods
 from tests.conftest import CANNED_PLAN_JSON, FakeUserStore
 
 
@@ -83,3 +84,45 @@ def test_save_profile_and_plan_round_trip() -> None:
     assert user is not None
     assert user.profile == profile
     assert user.active_plan == plan
+
+
+def _pancake() -> PersonalFood:
+    return PersonalFood(
+        id="pancake-1",
+        name="Special Pancake",
+        serving_size=1,
+        serving_unit="pancake",
+        calories=140,
+        protein_g=10,
+        carbs_g=12,
+        fat_g=4,
+    )
+
+
+def test_null_personal_foods_column_reads_as_empty_list() -> None:
+    # The real column is null until the user saves something.
+    assert _parse_personal_foods(None) == []
+    assert _parse_personal_foods("") == []
+
+
+def test_save_personal_foods_round_trip_leaves_profile_and_plan() -> None:
+    store = FakeUserStore()
+    profile = _sample_profile()
+    plan = _sample_plan()
+    store.save_profile_and_plan("demo1", profile, plan)
+
+    store.save_personal_foods("demo1", [_pancake()])
+
+    user = store.get_user("demo1")
+    assert user is not None
+    assert user.personal_foods == [_pancake()]
+    assert user.profile == profile
+    assert user.active_plan == plan
+
+    # The other direction: rewriting the plan does not drop the library.
+    store.save_plan("demo1", plan.model_copy(update={"notes": "Still the plan."}))
+    again = store.get_user("demo1")
+    assert again is not None
+    assert again.personal_foods == [_pancake()]
+    assert again.active_plan is not None
+    assert again.active_plan.notes == "Still the plan."

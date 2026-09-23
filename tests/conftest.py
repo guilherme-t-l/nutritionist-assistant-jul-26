@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from agent.llm import Message
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan, PersonalFood, UserProfile
 from agent.session import Session
 from agent.users import UserRecord
 from src.app.dependencies import get_llm, get_session_store, get_user_store
@@ -105,6 +105,9 @@ class FakeUserStore:
             u: None for u in _DEMO_PASSWORDS
         }
         self._plans: dict[str, MealPlan | None] = {u: None for u in _DEMO_PASSWORDS}
+        self._personal_foods: dict[str, list[PersonalFood]] = {
+            u: [] for u in _DEMO_PASSWORDS
+        }
 
     def verify_credentials(self, username: str, password: str) -> bool:
         return self._passwords.get(username) == password
@@ -116,6 +119,7 @@ class FakeUserStore:
             username=username,
             profile=self._profiles[username],
             active_plan=self._plans[username],
+            personal_foods=list(self._personal_foods[username]),
         )
 
     def save_profile(self, username: str, profile: UserProfile) -> None:
@@ -129,6 +133,17 @@ class FakeUserStore:
     ) -> None:
         self._profiles[username] = profile
         self._plans[username] = plan
+
+    def get_personal_foods(self, username: str) -> list[PersonalFood]:
+        if username not in self._personal_foods:
+            return []
+        return list(self._personal_foods[username])
+
+    def save_personal_foods(self, username: str, foods: list[PersonalFood]) -> None:
+        # Library column only. Profile and plan dicts are not touched.
+        if username not in self._passwords:
+            return
+        self._personal_foods[username] = list(foods)
 
 
 class FakeSessionStore:

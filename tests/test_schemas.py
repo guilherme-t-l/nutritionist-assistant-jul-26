@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agent.schemas import Food, Meal, MealPlan, UserProfile
+from agent.schemas import Food, Meal, MealPlan, PersonalFood, UserProfile
 
 
 class TestUserProfile:
@@ -181,3 +181,75 @@ class TestMealPlan:
         # A day with zero meals is not a valid plan.
         with pytest.raises(ValidationError):
             MealPlan(meals=[])
+
+
+class TestPersonalFood:
+    def test_valid_pancake_parses_and_ingredients_default_to_empty(self) -> None:
+        food = PersonalFood(
+            id="pancake-1",
+            name="Special Pancake",
+            serving_size=1,
+            serving_unit="pancake",
+            calories=140,
+            protein_g=10,
+            carbs_g=12,
+            fat_g=4,
+        )
+
+        assert food.name == "Special Pancake"
+        assert food.serving_size == 1
+        assert food.ingredients == []
+        # A whole serving stores as 1, not 1.0.
+        assert food.model_dump()["serving_size"] == 1
+
+    def test_missing_ingredients_in_json_becomes_empty_list(self) -> None:
+        food = PersonalFood.model_validate(
+            {
+                "id": "pancake-1",
+                "name": "Special Pancake",
+                "serving_size": 1,
+                "serving_unit": "pancake",
+                "calories": 140,
+                "protein_g": 10,
+                "carbs_g": 12,
+                "fat_g": 4,
+            }
+        )
+
+        assert food.ingredients == []
+
+    def test_blank_name_zero_serving_and_negative_calories_are_rejected(self) -> None:
+        base = {
+            "id": "pancake-1",
+            "name": "Special Pancake",
+            "serving_size": 1,
+            "serving_unit": "pancake",
+            "calories": 140,
+            "protein_g": 10,
+            "carbs_g": 12,
+            "fat_g": 4,
+        }
+        with pytest.raises(ValidationError):
+            PersonalFood.model_validate({**base, "name": "   "})
+        with pytest.raises(ValidationError):
+            PersonalFood.model_validate({**base, "serving_unit": ""})
+        with pytest.raises(ValidationError):
+            PersonalFood.model_validate({**base, "serving_size": 0})
+        with pytest.raises(ValidationError):
+            PersonalFood.model_validate({**base, "calories": -1})
+
+    def test_ingredients_are_kept_as_notes(self) -> None:
+        food = PersonalFood(
+            id="pancake-1",
+            name="  Special Pancake  ",
+            serving_size=1,
+            serving_unit="pancake",
+            calories=140,
+            protein_g=10,
+            carbs_g=12,
+            fat_g=4,
+            ingredients=["oat flour", "  ", "egg"],
+        )
+
+        assert food.name == "Special Pancake"
+        assert food.ingredients == ["oat flour", "egg"]
