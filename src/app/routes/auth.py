@@ -2,6 +2,10 @@
 #
 # Cookie value is the username (MVP). No JWT. Login does not mutate profile
 # or active_plan — those only change after successful /plan, /plan/save, or PUT /profile.
+#
+# max_age makes this a persistent cookie. Without it the browser treats the
+# cookie as a session cookie and drops it when the app/tab is closed — which
+# on a phone feels like being logged out. 15 days in seconds.
 
 from __future__ import annotations
 
@@ -17,6 +21,8 @@ from src.app.dependencies import get_session_store, get_user_store
 router = APIRouter()
 
 COOKIE_NAME = "nutri_user"
+# 15 days. Browsers store this until it expires, or until logout deletes it.
+AUTH_COOKIE_MAX_AGE_SECONDS = 15 * 24 * 60 * 60
 
 
 class LoginRequest(BaseModel):
@@ -48,6 +54,7 @@ def _set_auth_cookie(response: Response, username: str) -> None:
         httponly=True,
         samesite="lax",
         path="/",
+        max_age=AUTH_COOKIE_MAX_AGE_SECONDS,
     )
 
 
