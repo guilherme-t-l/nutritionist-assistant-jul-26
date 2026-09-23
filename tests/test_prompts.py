@@ -12,7 +12,7 @@ from agent.prompts import (
     build_edit_system_prompt,
     build_initial_user_message,
 )
-from agent.schemas import Food, Meal, MealPlan, UserProfile
+from agent.schemas import Food, Meal, MealPlan, PersonalFood, UserProfile
 
 
 # Tiny MealPlan fixture for edit-prompt / assistant-note tests.
@@ -246,6 +246,67 @@ def test_edit_prompt_includes_shared_profile_constraints() -> None:
     # Usual count is guidance; create's hard lock must not appear in edit.
     assert "usual meal count is 4" in prompt
     assert "Produce a full day of exactly" not in prompt
+
+
+def _pancake() -> PersonalFood:
+    return PersonalFood(
+        id="pancake-1",
+        name="Special Pancake",
+        serving_size=1,
+        serving_unit="pancake",
+        calories=140,
+        protein_g=10,
+        carbs_g=12,
+        fat_g=4,
+        ingredients=["oat flour", "egg"],
+    )
+
+
+def test_edit_prompt_with_no_foods_matches_prompt_without_library() -> None:
+    profile = UserProfile(goal="maintain", calorie_target=2000)
+    plan = _sample_plan()
+
+    bare = build_edit_system_prompt(profile, plan)
+    empty = build_edit_system_prompt(profile, plan, [])
+
+    assert bare == empty
+    assert "Personal foods" not in bare
+
+
+def test_edit_prompt_includes_library_rules_and_still_has_the_plan() -> None:
+    profile = UserProfile(
+        goal="maintain",
+        calorie_target=2000,
+        allergies=["peanuts"],
+    )
+    plan = _sample_plan()
+    food = _pancake()
+
+    prompt = build_edit_system_prompt(profile, plan, [food])
+
+    assert "Special Pancake" in prompt
+    assert "1 pancake" in prompt
+    assert "140 kcal" in prompt
+    assert "oat flour" in prompt
+    assert "not approved, not recommended, and not preferred" in prompt
+    assert "Do not insert personal foods on your own." in prompt
+    assert "Do not prefer a personal food only because it is in this list." in prompt
+    assert "Do not limit suggestions to this list." in prompt
+    assert "Allergies still win." in prompt
+    assert plan.model_dump_json() in prompt
+    assert "Current meal plan:" in prompt
+    # Profile constraints, then the library, then the plan being edited.
+    assert prompt.index("peanuts") < prompt.index("Personal foods")
+    assert prompt.index("Personal foods") < prompt.index("Current meal plan:")
+
+
+def test_create_prompt_does_not_include_the_library() -> None:
+    profile = UserProfile(goal="maintain", calorie_target=2000)
+
+    prompt = build_create_system_prompt(profile)
+
+    assert "Personal foods" not in prompt
+    assert "Special Pancake" not in prompt
 
 
 # --- User / assistant message helpers ----------------------------------------

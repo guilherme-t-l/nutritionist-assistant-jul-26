@@ -24,7 +24,7 @@ from agent.schemas import MealPlan, UserProfile
 from agent.session import SessionStore
 from agent.users import UserStore
 from src.app.dependencies import get_llm, get_session_store, get_user_store
-from src.app.routes.auth import get_optional_username
+from src.app.routes.auth import get_optional_username, personal_foods_for_request
 
 
 # An `APIRouter` is a mini-FastAPI-app — you attach routes here, and
@@ -226,7 +226,18 @@ async def import_plan(
         source_text = body.source_text
         mode = body.mode
 
-    plan = normalize_meal_plan(source_text, profile, llm, mode=mode)
+    # Adapt is an edit of their plan, so the library belongs on that call.
+    # as_is only structures what they pasted — no personal foods.
+    personal_foods = (
+        personal_foods_for_request(request, user_store) if mode == "adapt" else None
+    )
+    plan = normalize_meal_plan(
+        source_text,
+        profile,
+        llm,
+        mode=mode,
+        personal_foods=personal_foods,
+    )
     return _commit_imported_plan(
         profile=profile,
         plan=plan,

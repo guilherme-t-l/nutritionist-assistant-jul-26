@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan, PersonalFood, UserProfile
 from agent.session import SessionStore
 from agent.users import UserStore
 from src.app.dependencies import get_session_store, get_user_store
@@ -45,6 +45,18 @@ class MeResponse(BaseModel):
 def get_optional_username(request: Request) -> str | None:
     """Read the auth cookie if present; does not validate against the DB."""
     return request.cookies.get(COOKIE_NAME)
+
+
+def personal_foods_for_request(request: Request, user_store: UserStore) -> list[PersonalFood]:
+    """Library for this cookie, read now. Guests and unknown users get [].
+
+    Called on each /chat (and import-adapt) so a food saved a moment ago is
+    what the agent sees — not a copy frozen on the session.
+    """
+    username = get_optional_username(request)
+    if not username:
+        return []
+    return user_store.get_personal_foods(username)
 
 
 def _set_auth_cookie(response: Response, username: str) -> None:

@@ -165,7 +165,7 @@
       color: var(--muted);
       font-size: 0.8rem;
     }
-    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+    input[type="text"], input[type="password"], input[type="number"], input[type="search"], select, textarea {
       width: 100%;
       padding: 0.75rem 0.9rem;
       margin-top: 0.4rem;
@@ -214,7 +214,8 @@
       grid-template-columns: repeat(3, 1fr);
       gap: 0.75rem;
     }
-    .macro-row > div > label {
+    .macro-row > div > label,
+    .serving-row > div > label {
       margin-top: 0.55rem;
       font-size: 0.68rem;
     }
@@ -1203,6 +1204,80 @@
     }
     .food-list { gap: 0.9rem; }
 
+    /* ---------- My foods ---------- */
+    .foods {
+      max-width: var(--max-form);
+      margin: 0 auto;
+      padding: 2.75rem 1.25rem 4.5rem;
+    }
+    .foods h1 {
+      margin: 0 0 0.4rem;
+      font-size: clamp(2rem, 4vw, 2.5rem);
+      font-weight: 500;
+    }
+    .foods .subtitle { margin-bottom: 0.85rem; max-width: 38rem; }
+    .foods-back { margin: 0 0 1.25rem; padding-left: 0; }
+    .foods h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.45rem;
+      font-weight: 500;
+    }
+    .foods-lead {
+      margin: 0 0 0.25rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .serving-row {
+      display: grid;
+      grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+      gap: 0.75rem;
+    }
+    .macro-row.macros-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .foods textarea { min-height: 5.5rem; resize: vertical; }
+    .library-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 1rem;
+    }
+    .library-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.95rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface-raised);
+    }
+    .library-item h3 {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 1.02rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+    .library-line {
+      margin: 0.2rem 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .library-notes {
+      margin: 0.35rem 0 0;
+      color: var(--muted-soft);
+      font-size: 0.82rem;
+    }
+    .library-actions {
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+    .library-actions .btn-ghost { padding: 0.15rem 0; }
+    .foods-empty {
+      margin: 1rem 0 0.25rem;
+      color: var(--muted);
+    }
+
     /* ---------- Mobile ---------- */
     @media (max-width: 768px) {
       .app {
@@ -1263,6 +1338,10 @@
       }
       .welcome-inner { padding: 2.5rem 1rem 3rem; }
       .onboarding { padding: 2rem 1rem 3.5rem; }
+      .foods { padding: 1.75rem 1rem 3.5rem; }
+      .serving-row,
+      .macro-row.macros-4 { grid-template-columns: 1fr 1fr; }
+      .library-item { flex-direction: column; gap: 0.65rem; }
       .card { padding: 1.5rem 1.25rem; }
       .macro-row { grid-template-columns: 1fr; }
       .form-actions {
@@ -1415,6 +1494,69 @@
     </section>
   </main>
 
+  <!-- MY FOODS (logged-in). Separate from the meal-plan pane. -->
+  <main id="foods-view" class="foods hidden">
+    <button type="button" id="foods-back-btn" class="btn-ghost foods-back">Back to plan</button>
+    <h1>My foods</h1>
+    <p class="subtitle">Foods you already eat, one serving at a time. Your meal plan stays the plan — chat can use this list only when you ask.</p>
+
+    <section class="card">
+      <h2 id="food-form-title">Add a food</h2>
+      <p class="foods-lead">Macros are for a single serving. Ingredients are an optional note.</p>
+      <form id="food-form">
+        <label for="food-name">Name</label>
+        <input id="food-name" type="text" autocomplete="off" placeholder="Special Pancake" required />
+
+        <div class="serving-row">
+          <div>
+            <label for="food-serving-size">Serving size</label>
+            <input id="food-serving-size" type="number" min="0" step="any" placeholder="1" required />
+          </div>
+          <div>
+            <label for="food-serving-unit">Serving unit</label>
+            <input id="food-serving-unit" type="text" autocomplete="off" placeholder="pancake" required />
+          </div>
+        </div>
+
+        <label>Macros for one serving</label>
+        <div class="macro-row macros-4">
+          <div>
+            <label for="food-calories">Calories</label>
+            <input id="food-calories" type="number" min="0" step="1" placeholder="140" required />
+          </div>
+          <div>
+            <label for="food-carbs">Carbs (g)</label>
+            <input id="food-carbs" type="number" min="0" step="1" placeholder="12" required />
+          </div>
+          <div>
+            <label for="food-protein">Protein (g)</label>
+            <input id="food-protein" type="number" min="0" step="1" placeholder="10" required />
+          </div>
+          <div>
+            <label for="food-fat">Fat (g)</label>
+            <input id="food-fat" type="number" min="0" step="1" placeholder="4" required />
+          </div>
+        </div>
+
+        <label for="food-ingredients">Ingredients <span class="hint">(optional — one per line)</span></label>
+        <textarea id="food-ingredients" placeholder="oat flour&#10;egg&#10;cocoa"></textarea>
+
+        <div class="form-actions">
+          <button type="submit" id="food-save-btn" class="btn-primary">Add food</button>
+          <button type="button" id="food-cancel-btn" class="btn-ghost hidden">Cancel</button>
+        </div>
+        <p id="foods-error" class="error hidden"></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <label for="foods-search">Search</label>
+      <input id="foods-search" type="search" autocomplete="off" placeholder="Filter by name" />
+      <div id="foods-list" class="library-list"></div>
+      <p id="foods-empty" class="foods-empty hidden"></p>
+    </section>
+  </main>
+
   <!-- SPLIT-PANEL VIEW -->
   <div id="split-view" class="app hidden">
     <header class="app-bar">
@@ -1426,6 +1568,7 @@
         <div class="header-actions-group">
           <button id="new-chat-btn" class="btn-nav hidden" type="button">New chat</button>
           <button id="update-prefs-btn" class="btn-nav hidden" type="button">Updated Preferences</button>
+          <button id="my-foods-btn" class="btn-nav hidden" type="button">My foods</button>
           <button id="new-plan-btn" class="btn-nav" type="button">New plan</button>
         </div>
         <div class="header-actions-divider" aria-hidden="true"></div>
@@ -1632,6 +1775,7 @@
       const loggedIn = isLoggedIn();
       $("new-chat-btn").classList.toggle("hidden", !loggedIn);
       $("update-prefs-btn").classList.toggle("hidden", !loggedIn);
+      $("my-foods-btn").classList.toggle("hidden", !loggedIn);
       $("logout-btn").classList.toggle("hidden", !loggedIn);
       const divider = document.querySelector(".header-actions-divider");
       if (divider) divider.classList.toggle("hidden", !loggedIn);
@@ -1662,6 +1806,7 @@
       $("welcome-view").classList.remove("hidden");
       $("onboarding-view").classList.add("hidden");
       $("split-view").classList.add("hidden");
+      $("foods-view").classList.add("hidden");
       playViewEnter($("welcome-view"));
     }
     function showOnboarding(mode = "plan") {
@@ -1678,11 +1823,13 @@
       $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.remove("hidden");
       $("split-view").classList.add("hidden");
+      $("foods-view").classList.add("hidden");
       playViewEnter($("onboarding-view"));
     }
     function showSplitView() {
       $("welcome-view").classList.add("hidden");
       $("onboarding-view").classList.add("hidden");
+      $("foods-view").classList.add("hidden");
       $("split-view").classList.remove("hidden");
       updateHeaderActions();
       updatePlanBusy();
@@ -2333,6 +2480,236 @@
     $("update-prefs-btn").addEventListener("click", () => {
       fillProfileForm(state.profile);
       showOnboarding("prefs");
+    });
+
+    // ---------- My foods ----------
+    // Kept off `state` on purpose: the library is not the meal plan, and
+    // opening this screen must not mark the plan dirty or rewrite it.
+    let libraryFoods = [];
+    let editingFoodId = null;
+
+    function formatServingAmount(value) {
+      const num = Number(value);
+      if (Number.isInteger(num)) return String(num);
+      return String(num);
+    }
+
+    function formatLibraryLine(food) {
+      const size = formatServingAmount(food.serving_size);
+      return `${size} ${food.serving_unit} · ${food.calories} kcal · ${food.carbs_g}C · ${food.protein_g}P · ${food.fat_g}F`;
+    }
+
+    function filteredLibraryFoods() {
+      const query = $("foods-search").value.trim().toLowerCase();
+      if (!query) return libraryFoods;
+      return libraryFoods.filter((food) => food.name.toLowerCase().includes(query));
+    }
+
+    function resetFoodForm() {
+      editingFoodId = null;
+      $("food-form").reset();
+      $("food-form-title").textContent = "Add a food";
+      $("food-save-btn").textContent = "Add food";
+      $("food-cancel-btn").classList.add("hidden");
+      $("foods-error").classList.add("hidden");
+    }
+
+    function showFoodsError(message) {
+      const err = $("foods-error");
+      err.textContent = message;
+      err.classList.remove("hidden");
+    }
+
+    async function errorMessage(res) {
+      let data = null;
+      try { data = await res.json(); } catch { /* non-JSON body */ }
+      if (!data) return res.statusText || "Request failed.";
+      if (typeof data.detail === "string") return data.detail;
+      if (Array.isArray(data.detail) && data.detail.length) {
+        return data.detail.map((item) => item.msg || "Invalid value").join(" ");
+      }
+      return "Could not save that food.";
+    }
+
+    function renderLibrary() {
+      const matches = filteredLibraryFoods();
+      const list = $("foods-list");
+      const empty = $("foods-empty");
+      if (!matches.length) {
+        list.innerHTML = "";
+        empty.textContent = libraryFoods.length
+          ? "No foods match that search."
+          : "Nothing saved yet. Add a food you already make.";
+        empty.classList.remove("hidden");
+        return;
+      }
+      empty.classList.add("hidden");
+      list.innerHTML = matches.map((food) => {
+        const notes = (food.ingredients || []).length
+          ? `<p class="library-notes">Ingredients: ${escapeHtml(food.ingredients.join(", "))}</p>`
+          : "";
+        return `
+          <article class="library-item">
+            <div>
+              <h3>${escapeHtml(food.name)}</h3>
+              <p class="library-line">${escapeHtml(formatLibraryLine(food))}</p>
+              ${notes}
+            </div>
+            <div class="library-actions">
+              <button type="button" class="btn-ghost" data-edit="${escapeHtml(food.id)}">Edit</button>
+              <button type="button" class="btn-ghost" data-delete="${escapeHtml(food.id)}">Delete</button>
+            </div>
+          </article>`;
+      }).join("");
+
+      list.querySelectorAll("[data-edit]").forEach((btn) => {
+        btn.addEventListener("click", () => beginEditFood(btn.getAttribute("data-edit")));
+      });
+      list.querySelectorAll("[data-delete]").forEach((btn) => {
+        btn.addEventListener("click", () => deleteFood(btn.getAttribute("data-delete")));
+      });
+    }
+
+    function beginEditFood(foodId) {
+      const food = libraryFoods.find((item) => item.id === foodId);
+      if (!food) return;
+      editingFoodId = food.id;
+      $("food-form-title").textContent = "Edit food";
+      $("food-save-btn").textContent = "Save changes";
+      $("food-cancel-btn").classList.remove("hidden");
+      $("foods-error").classList.add("hidden");
+      $("food-name").value = food.name;
+      $("food-serving-size").value = food.serving_size;
+      $("food-serving-unit").value = food.serving_unit;
+      $("food-calories").value = food.calories;
+      $("food-protein").value = food.protein_g;
+      $("food-carbs").value = food.carbs_g;
+      $("food-fat").value = food.fat_g;
+      $("food-ingredients").value = (food.ingredients || []).join("\n");
+      $("food-form").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function readFoodForm() {
+      const name = $("food-name").value.trim();
+      const servingUnit = $("food-serving-unit").value.trim();
+      const servingSize = Number($("food-serving-size").value);
+      const calories = Number($("food-calories").value);
+      const protein = Number($("food-protein").value);
+      const carbs = Number($("food-carbs").value);
+      const fat = Number($("food-fat").value);
+      if (!name) throw new Error("Name is required.");
+      if (!servingUnit) throw new Error("Serving unit is required.");
+      if (!(servingSize > 0)) throw new Error("Serving size must be greater than 0.");
+      const macros = [
+        ["Calories", calories],
+        ["Protein", protein],
+        ["Carbs", carbs],
+        ["Fat", fat],
+      ];
+      for (const [label, value] of macros) {
+        if (!Number.isInteger(value) || value < 0) {
+          throw new Error(`${label} must be a whole number, 0 or more.`);
+        }
+      }
+      const ingredients = $("food-ingredients").value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      return {
+        name,
+        serving_size: servingSize,
+        serving_unit: servingUnit,
+        calories,
+        protein_g: protein,
+        carbs_g: carbs,
+        fat_g: fat,
+        ingredients,
+      };
+    }
+
+    async function loadLibrary() {
+      const res = await fetch("/personal-foods");
+      if (!res.ok) throw new Error(await errorMessage(res));
+      libraryFoods = await res.json();
+      renderLibrary();
+    }
+
+    async function showFoods() {
+      $("welcome-view").classList.add("hidden");
+      $("onboarding-view").classList.add("hidden");
+      $("split-view").classList.add("hidden");
+      $("foods-view").classList.remove("hidden");
+      $("foods-search").value = "";
+      resetFoodForm();
+      playViewEnter($("foods-view"));
+      try {
+        await loadLibrary();
+      } catch (ex) {
+        showFoodsError(ex.message || "Could not load your foods.");
+      }
+    }
+
+    async function deleteFood(foodId) {
+      const food = libraryFoods.find((item) => item.id === foodId);
+      const label = food ? food.name : "this food";
+      if (!window.confirm(`Delete ${label}?`)) return;
+      $("foods-error").classList.add("hidden");
+      const res = await fetch(`/personal-foods/${encodeURIComponent(foodId)}`, { method: "DELETE" });
+      if (!res.ok) {
+        showFoodsError(await errorMessage(res));
+        return;
+      }
+      if (editingFoodId === foodId) resetFoodForm();
+      await loadLibrary();
+    }
+
+    $("my-foods-btn").addEventListener("click", () => {
+      showFoods();
+    });
+
+    $("foods-back-btn").addEventListener("click", () => {
+      showSplitView();
+    });
+
+    $("foods-search").addEventListener("input", () => {
+      renderLibrary();
+    });
+
+    $("food-cancel-btn").addEventListener("click", () => {
+      resetFoodForm();
+    });
+
+    $("food-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = $("foods-error");
+      err.classList.add("hidden");
+      const btn = $("food-save-btn");
+      let payload;
+      try {
+        payload = readFoodForm();
+      } catch (ex) {
+        showFoodsError(ex.message);
+        return;
+      }
+      const editing = editingFoodId;
+      btn.disabled = true;
+      try {
+        const res = await fetch(
+          editing ? `/personal-foods/${encodeURIComponent(editing)}` : "/personal-foods",
+          {
+            method: editing ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+        if (!res.ok) throw new Error(await errorMessage(res));
+        resetFoodForm();
+        await loadLibrary();
+      } catch (ex) {
+        showFoodsError(ex.message || "Could not save that food.");
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     $("logout-btn").addEventListener("click", async () => {

@@ -46,6 +46,8 @@ def test_chat_uses_session_and_forwards_history(
     # Plan lives in system on Call 2 — not as a full JSON model turn in history.
     assert "Current meal plan:" in system
     assert "Tapioca com queijo" in system
+    # Guest chat has no library section.
+    assert "Personal foods" not in system
     assert messages[1].content == "Balanced day."
     assert "meals" not in messages[1].content
 

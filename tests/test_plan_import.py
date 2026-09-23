@@ -127,6 +127,8 @@ def test_import_adapt_uses_profile_and_llm_even_for_json(
     assert "peanuts" in system
     assert "2000" in system
     assert "EDIT" in system or "Edit" in fake_llm.calls[0]["messages"][0].content
+    # Guest adapt has no library to mention.
+    assert "Personal foods" not in system
 
     session = session_store.get(response.json()["session_id"])
     assert session is not None

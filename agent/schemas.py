@@ -10,9 +10,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import AfterValidator, BaseModel, Field, computed_field, field_serializer
 
 
 # `Literal[...]` restricts a value to one of these three exact strings.
@@ -179,3 +179,60 @@ class MealPlan(BaseModel):
     @property
     def total_calories(self) -> int:
         return sum(meal.calories for meal in self.meals)
+
+
+# A label the user typed. `AfterValidator` runs after Pydantic accepts the
+# string: trim spaces, then reject a blank. "   " is not a food name.
+def _required_label(value: str) -> str:
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("must not be blank")
+    return stripped
+
+
+# Ingredient lines are notes. Drop blanks; do not turn them into macros.
+def _clean_ingredients(value: list[str]) -> list[str]:
+    return [item.strip() for item in value if item.strip()]
+
+
+# `Annotated` attaches rules to a type so several models can share them.
+# `AfterValidator` is the function that runs on the value after basic parsing.
+Label = Annotated[str, AfterValidator(_required_label)]
+IngredientNotes = Annotated[list[str], AfterValidator(_clean_ingredients)]
+
+
+def _whole_number_if_integral(value: float) -> int | float:
+    """1.0 stores as 1. 1.5 stays 1.5. The library's serving size is a number."""
+    if float(value).is_integer():
+        return int(value)
+    return value
+
+
+# What the user types when adding or editing a food. No `id` yet — the server
+# assigns that on create, and the URL supplies it on edit.
+class PersonalFoodDraft(BaseModel):
+    name: Label
+    # `gt=0` means strictly greater than zero. 0 and negatives are rejected.
+    serving_size: float = Field(gt=0)
+    serving_unit: Label
+    # Same idea as `Food`: macros cannot be negative. They describe ONE serving.
+    calories: int = Field(ge=0)
+    protein_g: int = Field(ge=0)
+    carbs_g: int = Field(ge=0)
+    fat_g: int = Field(ge=0)
+    # Optional recipe lines. Missing in JSON becomes []. Not summed into macros.
+    ingredients: IngredientNotes = Field(default_factory=list)
+
+    # `@field_serializer` changes how this field is written to JSON.
+    # A serving of 1 should look like `1`, not `1.0`.
+    @field_serializer("serving_size")
+    def _serialize_serving_size(self, value: float) -> int | float:
+        return _whole_number_if_integral(value)
+
+
+# One saved serving in the user's personal library.
+# This is a new type. It does not change `Food` or `MealPlan`.
+# `Food.quantity` is a display string ("1 pancake"). Here the size and the
+# unit are separate so the agent can scale "2 pancakes" from one serving.
+class PersonalFood(PersonalFoodDraft):
+    id: str = Field(min_length=1)

@@ -10,15 +10,15 @@
 #   (_build_shared_context)     (create OR edit)            (edit only)
 #
 #   • /plan  → build_create_system_prompt(profile)
-#   • /chat  → build_edit_system_prompt(profile, plan)
-#   • import adapt → create prompt + a suffix in plan_import.py
+#   • /chat  → build_edit_system_prompt(profile, plan, personal_foods?)
+#   • import adapt → create prompt + personal foods (if any) + a suffix in plan_import.py
 #
 # Shared = who the agent is + this user's hard constraints (calories, allergies…).
 # Create/edit = what the agent should DO with those facts (invent vs revise).
 
 from __future__ import annotations
 
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan, PersonalFood, UserProfile
 
 
 # ---------------------------------------------------------------------------
@@ -127,13 +127,47 @@ def build_create_system_prompt(profile: UserProfile) -> str:
     return _build_shared_context(profile) + _create_job_instructions(profile.meals_per_day)
 
 
-# /chat: shared + edit job + current plan as JSON.
-def build_edit_system_prompt(profile: UserProfile, plan: MealPlan) -> str:
+# /chat: shared constraints, then the library (only if non-empty), then the
+# edit job and the current plan JSON. An empty library adds nothing — the
+# prompt stays the same as a user who has never saved a personal food.
+def build_edit_system_prompt(
+    profile: UserProfile,
+    plan: MealPlan,
+    personal_foods: list[PersonalFood] | None = None,
+) -> str:
     return (
         _build_shared_context(profile)
+        + format_personal_foods_section(personal_foods or [])
         + _edit_job_instructions(profile.meals_per_day)
         + plan.model_dump_json()
     )
+
+
+# Library block for edit and for import-adapt. "" when there is nothing to say,
+# so we never send "Personal foods: none."
+def format_personal_foods_section(foods: list[PersonalFood]) -> str:
+    if not foods:
+        return ""
+    lines = [_format_personal_food_line(food) for food in foods]
+    catalog = "\n".join(lines)
+    return f"""
+Personal foods this user already eats (context only — not the meal plan):
+
+The current meal plan is the anchor. These are foods this user eats. They are not approved, not recommended, and not preferred over the meal plan.
+
+Use a personal food only when one of these is true:
+1. The user explicitly asks for it (for example, "I want my pancakes tomorrow"). Choose a quantity that fits the day's targets, and add other foods if that serving alone misses the meal.
+2. The user asks for a substitution (for example, "What can I eat instead of breakfast?"). Personal foods are options alongside other suitable foods, not the whole menu.
+3. The user says they already have it (for example, "I have my pancakes ready"). Fit that food into the meal and keep the nutritional targets.
+
+Do not insert personal foods on your own.
+Do not prefer a personal food only because it is in this list.
+Do not limit suggestions to this list.
+Allergies still win. A personal food that conflicts with an allergy is not used.
+Macros below are for one serving. Multiply by the number of servings you choose, then round to whole kcal and grams.
+
+{catalog}
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +249,25 @@ def _macro_targets(profile: UserProfile) -> str:
     lines = [f"Target {label}: {val}g per day." for label, val in set_targets]
     # Join with newlines and end with \n so the next prompt line sits cleanly.
     return "\n".join(lines) + "\n"
+
+
+def _format_serving_size(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return f"{value:g}"
+
+
+def _format_personal_food_line(food: PersonalFood) -> str:
+    size = _format_serving_size(food.serving_size)
+    line = (
+        f"- {food.name} — {size} {food.serving_unit} — "
+        f"{food.calories} kcal, {food.protein_g}g protein, "
+        f"{food.carbs_g}g carbs, {food.fat_g}g fat per serving."
+    )
+    if food.ingredients:
+        # Notes for the agent ("what's in it"). Not extra macros.
+        line += " Ingredients: " + ", ".join(food.ingredients) + "."
+    return line
 
 
 # Natural-language list join:

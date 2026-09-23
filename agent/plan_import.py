@@ -21,8 +21,9 @@ from agent.prompts import (
     build_create_system_prompt,
     build_import_adapt_user_message,
     build_import_user_message,
+    format_personal_foods_section,
 )
-from agent.schemas import MealPlan, UserProfile
+from agent.schemas import MealPlan, PersonalFood, UserProfile
 
 ImportMode = Literal["as_is", "adapt"]
 
@@ -94,6 +95,7 @@ def normalize_meal_plan(
     llm: LLM,
     *,
     mode: ImportMode = "as_is",
+    personal_foods: list[PersonalFood] | None = None,
 ) -> MealPlan:
     """Turn freeform / JSON source text into a validated MealPlan.
 
@@ -114,9 +116,14 @@ def normalize_meal_plan(
         system_prompt = _AS_IS_SYSTEM_PROMPT
         user_message = Message(role="user", content=build_import_user_message(text))
     else:
-        # Adapt uses create (profile + invent framing) + adapt suffix — not the
-        # conversational /chat edit ladder.
-        system_prompt = build_create_system_prompt(profile) + _ADAPT_SYSTEM_SUFFIX
+        # Adapt uses create (profile + invent framing) + the library when this
+        # user has one + adapt suffix — not the conversational /chat edit ladder.
+        # as_is ignores personal_foods: structuring a paste is not an edit.
+        system_prompt = (
+            build_create_system_prompt(profile)
+            + format_personal_foods_section(personal_foods or [])
+            + _ADAPT_SYSTEM_SUFFIX
+        )
         user_message = Message(
             role="user", content=build_import_adapt_user_message(text)
         )
