@@ -930,40 +930,88 @@
     }
     .meal-total strong { color: var(--ink); font-weight: 600; }
 
-    .day-total {
+    /* One strip, top to bottom.
+       The large number is the plan amount.
+       The thin bar is that amount measured against the target: the track is the
+       whole target, the fill is how far the plan gets. The small gray number
+       under the bar is the target (the end of the scale).
+       The colored gap is last. No target means the column is just the amount. */
+    .day-summary {
       margin-top: 1.75rem;
       padding-top: 1.25rem;
       border-top: 1px solid var(--ink);
-      display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      font-variant-numeric: tabular-nums;
-      align-items: baseline;
     }
-    .day-total .label {
+    .day-summary .label {
       font-family: var(--font-display);
       font-weight: 500;
       font-size: 1.05rem;
       letter-spacing: -0.01em;
-      text-transform: none;
     }
-    .day-total .macros { color: var(--muted); }
-    .day-total .macros strong {
-      color: var(--ink);
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-    .target-row {
-      margin-top: 0.65rem;
-      display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      font-size: 0.88rem;
-      color: var(--muted);
+    .macro-strip {
+      margin-top: 0.85rem;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       font-variant-numeric: tabular-nums;
     }
-    /* Extra rows (protein, carbs, fat) sit closer than the gap under the daily total. */
-    .target-row + .target-row { margin-top: 0.28rem; }
+    .macro-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 0.12rem;
+      min-width: 0;
+      padding-right: 0.5rem;
+    }
+    .macro-cell + .macro-cell {
+      padding-left: 0.7rem;
+      border-left: 1px solid var(--line);
+    }
+    .macro-kicker {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted-soft, var(--muted));
+    }
+    .macro-value {
+      font-family: var(--font-display);
+      color: var(--ink);
+      font-size: 1.35rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    .macro-unit {
+      margin-left: 0.08rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .macro-scale {
+      display: block;
+      height: 2px;
+      margin-top: 0.45rem;
+      background: var(--line-strong);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .macro-scale > span {
+      display: block;
+      height: 100%;
+      width: var(--fill, 0%);
+      border-radius: 1px;
+    }
+    .macro-scale > span.ok { background: var(--sage); }
+    .macro-scale > span.off { background: var(--danger); }
+    .macro-mark {
+      margin-top: 0.28rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .macro-cell .delta {
+      margin-top: 0.22rem;
+      font-size: 0.84rem;
+    }
     .delta.ok { color: var(--sage); font-weight: 600; }
     .delta.off { color: var(--danger); font-weight: 600; }
     .plan-notes {
@@ -1292,20 +1340,42 @@
         overflow: visible;
       }
       .app-bar {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 0.85rem var(--app-gutter-x);
-        position: sticky;
-        top: 0;
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 0.6rem;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        padding: 0.4rem var(--app-gutter-x);
+        position: static;
+        overflow: hidden;
+      }
+      .app-bar .brand {
+        font-size: 1.05rem;
       }
       .header-actions {
-        width: 100%;
+        width: auto;
+        flex: 1;
+        min-width: 0;
+        flex-wrap: nowrap;
         justify-content: flex-start;
+        gap: 0.35rem;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .header-actions::-webkit-scrollbar { display: none; }
+      .header-actions-group {
+        flex-wrap: nowrap;
+        gap: 0.35rem;
       }
       .header-actions-divider { display: none; }
       .btn-nav {
-        min-height: 40px;
-        font-size: 0.8rem;
+        min-height: 32px;
+        padding: 0.22rem 0.55rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
       .app-body {
         grid-template-columns: 1fr;
@@ -1970,21 +2040,54 @@
       return [{ meals: plan.meals || [], notes: plan.notes || "" }];
     }
 
-    // One "Target / Δ" line. Green when the gap is within 10% of the target,
-    // red when it is wider — the same band calories already use.
-    // `target` null means the user left that field blank, so we skip the row.
-    function renderTargetRow(actual, target, unitLabel) {
-      if (target == null) return "";
+    // Green when the gap is within 10% of the target, red when it is wider.
+    // Returns null when the user left that target blank, so the column stays
+    // just the number — no "Target" line for an unset macro.
+    function compareToTarget(actual, target) {
+      if (target == null || target === "") return null;
       const goal = Number(target);
-      if (!Number.isFinite(goal)) return "";
+      if (!Number.isFinite(goal)) return null;
       const delta = actual - goal;
       const withinTen = Math.abs(delta) <= Math.abs(goal) * 0.10;
       const sign = delta > 0 ? "+" : (delta < 0 ? "−" : "±");
-      const deltaClass = withinTen ? "ok" : "off";
+      // The bar's full width is the target. Cap the fill at 100% when the
+      // plan is over; the colored gap below still shows how far over.
+      const fill = goal <= 0
+        ? (actual > 0 ? 100 : 0)
+        : Math.max(0, Math.min(100, (actual / goal) * 100));
+      return {
+        goal,
+        fill: fill.toFixed(1),
+        text: `${sign}${Math.abs(delta)}`,
+        cls: withinTen ? "ok" : "off",
+      };
+    }
+
+    function renderMacroCell(kicker, actual, unit, target) {
+      const cmp = compareToTarget(actual, target);
+      const unitHtml = unit ? `<span class="macro-unit">${unit}</span>` : "";
+      const meta = cmp
+        ? `<span class="macro-scale" aria-hidden="true"><span class="${cmp.cls}" style="--fill:${cmp.fill}%"></span></span><span class="macro-mark">${cmp.goal}${unitHtml}</span><span class="delta ${cmp.cls}">${cmp.text}</span>`
+        : "";
       return `
-        <div class="target-row">
-          <span>Target: ${goal} ${unitLabel}</span>
-          <span class="delta ${deltaClass}">Δ ${sign}${Math.abs(delta)} ${unitLabel}</span>
+        <div class="macro-cell">
+          <span class="macro-kicker">${kicker}</span>
+          <span class="macro-value">${actual}${unitHtml}</span>
+          ${meta}
+        </div>
+      `;
+    }
+
+    function renderDaySummary(totals, targets) {
+      return `
+        <div class="day-summary">
+          <span class="label">Daily total</span>
+          <div class="macro-strip">
+            ${renderMacroCell("kcal", totals.kcal, "", targets.kcal)}
+            ${renderMacroCell("P", totals.p, "g", targets.p)}
+            ${renderMacroCell("C", totals.c, "g", targets.c)}
+            ${renderMacroCell("F", totals.f, "g", targets.f)}
+          </div>
         </div>
       `;
     }
@@ -2033,23 +2136,13 @@
         return acc;
       }, { kcal: 0, p: 0, c: 0, f: 0 });
 
-      html += `
-        <div class="day-total">
-          <span class="label">Daily total</span>
-          <span class="macros">
-            <strong>${totals.kcal}</strong> kcal &nbsp;|&nbsp;
-            P ${totals.p}g &nbsp; C ${totals.c}g &nbsp; F ${totals.f}g
-          </span>
-        </div>
-      `;
-
-      // Same row for kcal and for each macro the user actually set.
-      // Blank macro fields stay hidden — they are optional on the profile.
       const profile = state.profile || {};
-      html += renderTargetRow(totals.kcal, state.calorieTarget, "kcal");
-      html += renderTargetRow(totals.p, profile.protein_g_target, "g protein");
-      html += renderTargetRow(totals.c, profile.carbs_g_target, "g carbs");
-      html += renderTargetRow(totals.f, profile.fat_g_target, "g fat");
+      html += renderDaySummary(totals, {
+        kcal: state.calorieTarget,
+        p: profile.protein_g_target,
+        c: profile.carbs_g_target,
+        f: profile.fat_g_target,
+      });
 
       if (day.notes) {
         html += `<p class="plan-notes">${escapeHtml(day.notes)}</p>`;

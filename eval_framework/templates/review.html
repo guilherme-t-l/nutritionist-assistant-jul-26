@@ -231,33 +231,81 @@
   gap: 1rem;
 }
 .meal-total strong { color: var(--ink); font-weight: 600; }
-.day-total {
+.day-summary {
   margin-top: 1.4rem;
   padding-top: 1rem;
   border-top: 1px solid var(--ink);
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  font-variant-numeric: tabular-nums;
-  align-items: baseline;
 }
-.day-total .label {
+.day-summary .label {
   font-family: var(--font-display);
   font-weight: 500;
   font-size: 1.05rem;
 }
-.day-total .macros { color: var(--muted); }
-.day-total .macros strong { color: var(--ink); font-size: 1.1rem; font-weight: 600; }
-.target-row {
-  margin-top: 0.55rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.88rem;
-  color: var(--muted);
+.macro-strip {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   font-variant-numeric: tabular-nums;
 }
-.target-row + .target-row { margin-top: 0.28rem; }
+.macro-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+  padding-right: 0.5rem;
+}
+.macro-cell + .macro-cell {
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--line);
+}
+.macro-kicker {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-soft, var(--muted));
+}
+.macro-value {
+  font-family: var(--font-display);
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.macro-unit {
+  margin-left: 0.08rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.macro-scale {
+  display: block;
+  height: 2px;
+  margin-top: 0.45rem;
+  background: var(--line-strong);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.macro-scale > span {
+  display: block;
+  height: 100%;
+  width: var(--fill, 0%);
+  border-radius: 1px;
+}
+.macro-scale > span.ok { background: var(--sage); }
+.macro-scale > span.off { background: var(--danger); }
+.macro-mark {
+  margin-top: 0.28rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.macro-cell .delta {
+  margin-top: 0.22rem;
+  font-size: 0.84rem;
+}
 .delta.ok { color: var(--sage); font-weight: 600; }
 .delta.off { color: var(--danger); font-weight: 600; }
 .plan-notes {
