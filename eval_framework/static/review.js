@@ -3,7 +3,7 @@
  *
  * Reads JSON from #review-data (injected by the Jinja template). Assistant
  * turns that are MealPlan JSON become short chat notes + a rendered plan
- * panel (meals, macros, calorie and macro deltas). Raw JSON stays behind a toggle.
+ * panel (meals, macros, a compact daily total). Raw JSON stays behind a toggle.
  */
 (function () {
   const dataEl = document.getElementById("review-data");
@@ -45,18 +45,49 @@
     return Number.isFinite(n) ? n : null;
   }
 
-  // Same 10% band as the product plan panel.
-  function renderTargetRow(actual, target, unitLabel) {
-    if (target == null) return "";
+  // Same 10% band as the product plan panel. Null target → number only.
+  function compareToTarget(actual, target) {
+    if (target == null || target === "") return null;
     const goal = Number(target);
-    if (!Number.isFinite(goal)) return "";
+    if (!Number.isFinite(goal)) return null;
     const delta = actual - goal;
     const withinTen = Math.abs(delta) <= Math.abs(goal) * 0.1;
     const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+    const fill = goal <= 0
+      ? (actual > 0 ? 100 : 0)
+      : Math.max(0, Math.min(100, (actual / goal) * 100));
+    return {
+      goal,
+      fill: fill.toFixed(1),
+      text: `${sign}${Math.abs(delta)}`,
+      cls: withinTen ? "ok" : "off",
+    };
+  }
+
+  function renderMacroCell(kicker, actual, unit, target) {
+    const cmp = compareToTarget(actual, target);
+    const unitHtml = unit ? `<span class="macro-unit">${unit}</span>` : "";
+    const meta = cmp
+      ? `<span class="macro-scale" aria-hidden="true"><span class="${cmp.cls}" style="--fill:${cmp.fill}%"></span></span><span class="macro-mark">${cmp.goal}${unitHtml}</span><span class="delta ${cmp.cls}">${cmp.text}</span>`
+      : "";
     return `
-      <div class="target-row">
-        <span>Target: ${goal} ${unitLabel}</span>
-        <span class="delta ${withinTen ? "ok" : "off"}">Δ ${sign}${Math.abs(delta)} ${unitLabel}</span>
+      <div class="macro-cell">
+        <span class="macro-kicker">${kicker}</span>
+        <span class="macro-value">${actual}${unitHtml}</span>
+        ${meta}
+      </div>`;
+  }
+
+  function renderDaySummary(totals, targets) {
+    return `
+      <div class="day-summary">
+        <span class="label">Daily total</span>
+        <div class="macro-strip">
+          ${renderMacroCell("kcal", totals.kcal, "", targets.kcal)}
+          ${renderMacroCell("P", totals.p, "g", targets.p)}
+          ${renderMacroCell("C", totals.c, "g", targets.c)}
+          ${renderMacroCell("F", totals.f, "g", targets.f)}
+        </div>
       </div>`;
   }
 
@@ -169,19 +200,12 @@
       { kcal: 0, p: 0, c: 0, f: 0 }
     );
 
-    html += `
-      <div class="day-total">
-        <span class="label">Daily total</span>
-        <span class="macros">
-          <strong>${totals.kcal}</strong> kcal &nbsp;|&nbsp;
-          P ${totals.p}g &nbsp; C ${totals.c}g &nbsp; F ${totals.f}g
-        </span>
-      </div>`;
-
-    html += renderTargetRow(totals.kcal, calorieTarget, "kcal");
-    html += renderTargetRow(totals.p, optionalTarget(context.protein_g_target), "g protein");
-    html += renderTargetRow(totals.c, optionalTarget(context.carbs_g_target), "g carbs");
-    html += renderTargetRow(totals.f, optionalTarget(context.fat_g_target), "g fat");
+    html += renderDaySummary(totals, {
+      kcal: calorieTarget,
+      p: optionalTarget(context.protein_g_target),
+      c: optionalTarget(context.carbs_g_target),
+      f: optionalTarget(context.fat_g_target),
+    });
 
     if (plan.notes) {
       html += `<p class="plan-notes">${escapeHtml(plan.notes)}</p>`;
