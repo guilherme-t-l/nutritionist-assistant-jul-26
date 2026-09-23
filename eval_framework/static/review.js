@@ -3,7 +3,7 @@
  *
  * Reads JSON from #review-data (injected by the Jinja template). Assistant
  * turns that are MealPlan JSON become short chat notes + a rendered plan
- * panel (meals, macros, calorie delta). Raw JSON stays behind a toggle.
+ * panel (meals, macros, calorie and macro deltas). Raw JSON stays behind a toggle.
  */
 (function () {
   const dataEl = document.getElementById("review-data");
@@ -36,6 +36,28 @@
         "'": "&#39;",
       })[ch]
     );
+  }
+
+  // Blank macro targets are omitted. 0 is a real target, so don't treat it as missing.
+  function optionalTarget(value) {
+    if (value == null || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // Same 10% band as the product plan panel.
+  function renderTargetRow(actual, target, unitLabel) {
+    if (target == null) return "";
+    const goal = Number(target);
+    if (!Number.isFinite(goal)) return "";
+    const delta = actual - goal;
+    const withinTen = Math.abs(delta) <= Math.abs(goal) * 0.1;
+    const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+    return `
+      <div class="target-row">
+        <span>Target: ${goal} ${unitLabel}</span>
+        <span class="delta ${withinTen ? "ok" : "off"}">Δ ${sign}${Math.abs(delta)} ${unitLabel}</span>
+      </div>`;
   }
 
   function tryParsePlan(content) {
@@ -156,16 +178,10 @@
         </span>
       </div>`;
 
-    if (calorieTarget) {
-      const delta = totals.kcal - calorieTarget;
-      const withinTen = Math.abs(delta) <= calorieTarget * 0.1;
-      const sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
-      html += `
-        <div class="target-row">
-          <span>Target: ${calorieTarget} kcal</span>
-          <span class="delta ${withinTen ? "ok" : "off"}">Δ ${sign}${Math.abs(delta)} kcal</span>
-        </div>`;
-    }
+    html += renderTargetRow(totals.kcal, calorieTarget, "kcal");
+    html += renderTargetRow(totals.p, optionalTarget(context.protein_g_target), "g protein");
+    html += renderTargetRow(totals.c, optionalTarget(context.carbs_g_target), "g carbs");
+    html += renderTargetRow(totals.f, optionalTarget(context.fat_g_target), "g fat");
 
     if (plan.notes) {
       html += `<p class="plan-notes">${escapeHtml(plan.notes)}</p>`;

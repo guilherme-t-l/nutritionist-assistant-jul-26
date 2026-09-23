@@ -962,6 +962,8 @@
       color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
+    /* Extra rows (protein, carbs, fat) sit closer than the gap under the daily total. */
+    .target-row + .target-row { margin-top: 0.28rem; }
     .delta.ok { color: var(--sage); font-weight: 600; }
     .delta.off { color: var(--danger); font-weight: 600; }
     .plan-notes {
@@ -1658,6 +1660,7 @@
       sessionId: "nutri.sessionId",
       calorieTarget: "nutri.calorieTarget",
       plan: "nutri.plan",
+      profile: "nutri.profile",
     };
 
     function escapeHtml(str) {
@@ -1688,11 +1691,11 @@
       sessionId: sessionStorage.getItem(SS_KEYS.sessionId) || null,
       calorieTarget: Number(sessionStorage.getItem(SS_KEYS.calorieTarget)) || null,
       plan: safeParseJson(sessionStorage.getItem(SS_KEYS.plan)),
+      profile: safeParseJson(sessionStorage.getItem(SS_KEYS.profile)),
       messages: [], // {role: "user"|"assistant", text: string}
       waiting: false,
       activeDayIndex: 0,
       username: null,
-      profile: null,
       // "plan" → POST /plan; "prefs" → PUT /profile (logged-in only)
       formMode: "plan",
       // Logged-in only: true when session plan differs from last saved active_plan.
@@ -1711,6 +1714,13 @@
       if (calorieTarget != null) {
         sessionStorage.setItem(SS_KEYS.calorieTarget, String(calorieTarget));
       }
+      // Macro targets live on the profile. Keep them across a reload so the
+      // plan panel can still show protein/carbs/fat deltas, same as kcal.
+      if (state.profile) {
+        sessionStorage.setItem(SS_KEYS.profile, JSON.stringify(state.profile));
+      } else {
+        sessionStorage.removeItem(SS_KEYS.profile);
+      }
     }
     function persistPlan(plan) {
       sessionStorage.setItem(SS_KEYS.plan, JSON.stringify(plan));
@@ -1719,6 +1729,7 @@
       sessionStorage.removeItem(SS_KEYS.sessionId);
       sessionStorage.removeItem(SS_KEYS.calorieTarget);
       sessionStorage.removeItem(SS_KEYS.plan);
+      sessionStorage.removeItem(SS_KEYS.profile);
       state.sessionId = null;
       state.calorieTarget = null;
       state.plan = null;
@@ -1959,6 +1970,25 @@
       return [{ meals: plan.meals || [], notes: plan.notes || "" }];
     }
 
+    // One "Target / Δ" line. Green when the gap is within 10% of the target,
+    // red when it is wider — the same band calories already use.
+    // `target` null means the user left that field blank, so we skip the row.
+    function renderTargetRow(actual, target, unitLabel) {
+      if (target == null) return "";
+      const goal = Number(target);
+      if (!Number.isFinite(goal)) return "";
+      const delta = actual - goal;
+      const withinTen = Math.abs(delta) <= Math.abs(goal) * 0.10;
+      const sign = delta > 0 ? "+" : (delta < 0 ? "−" : "±");
+      const deltaClass = withinTen ? "ok" : "off";
+      return `
+        <div class="target-row">
+          <span>Target: ${goal} ${unitLabel}</span>
+          <span class="delta ${deltaClass}">Δ ${sign}${Math.abs(delta)} ${unitLabel}</span>
+        </div>
+      `;
+    }
+
     function renderPlan(plan) {
       const card = $("plan-card");
       if (!plan || !plan.meals || plan.meals.length === 0) {
@@ -2013,18 +2043,13 @@
         </div>
       `;
 
-      if (state.calorieTarget) {
-        const delta = totals.kcal - state.calorieTarget;
-        const withinTen = Math.abs(delta) <= state.calorieTarget * 0.10;
-        const sign = delta > 0 ? "+" : (delta < 0 ? "−" : "±");
-        const deltaClass = withinTen ? "ok" : "off";
-        html += `
-          <div class="target-row">
-            <span>Target: ${state.calorieTarget} kcal</span>
-            <span class="delta ${deltaClass}">Δ ${sign}${Math.abs(delta)} kcal</span>
-          </div>
-        `;
-      }
+      // Same row for kcal and for each macro the user actually set.
+      // Blank macro fields stay hidden — they are optional on the profile.
+      const profile = state.profile || {};
+      html += renderTargetRow(totals.kcal, state.calorieTarget, "kcal");
+      html += renderTargetRow(totals.p, profile.protein_g_target, "g protein");
+      html += renderTargetRow(totals.c, profile.carbs_g_target, "g carbs");
+      html += renderTargetRow(totals.f, profile.fat_g_target, "g fat");
 
       if (day.notes) {
         html += `<p class="plan-notes">${escapeHtml(day.notes)}</p>`;
