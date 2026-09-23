@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from agent.schemas import MealPlan, UserProfile
 from src.app.dependencies import get_llm, get_session_store, get_user_store
 from src.app.main import app
-from src.app.routes.auth import COOKIE_NAME
+from src.app.routes.auth import AUTH_COOKIE_MAX_AGE_SECONDS, COOKIE_NAME
 from tests.conftest import CANNED_PLAN_JSON, FakeLLM, FakeSessionStore, FakeUserStore
 
 
@@ -38,6 +38,10 @@ def test_login_sets_cookie_and_reports_no_plan(auth_client: TestClient) -> None:
     body = response.json()
     assert body == {"username": "demo1", "has_plan": False}
     assert response.cookies.get(COOKIE_NAME) == "demo1"
+    # Persistent cookie: Max-Age tells the phone to keep the login for 15 days
+    # instead of dropping it when the browser closes.
+    set_cookie = response.headers["set-cookie"]
+    assert f"Max-Age={AUTH_COOKIE_MAX_AGE_SECONDS}" in set_cookie
 
 
 def test_login_bad_password_returns_401(auth_client: TestClient) -> None:
